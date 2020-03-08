@@ -1,5 +1,7 @@
 import numpy as np
+from scipy import signal
 import sys
+import math as mt
 from scipy.integrate import odeint
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -8,70 +10,126 @@ axis_num = {'x' : 0,
             'y' : 1,
             'z' : 2}
 
-mu0 = 1 # 1.25663706e-6 H/m
-epsilon0 = 1 # 8.85418782e-12 F/m
-me = 1 # 9.10938356e-31 kg
-mp = 1 # 1.6726219e-27 kg
-qe = 1 # 1.60217662e-19 C
+mu0 = 1.256e-6 # H/m
+epsilon0 = 8.854e-12 # F/m
+me = 9.109e-31 # kg
+mp = 1.672e-27 # kg
+qe = 1.602e-19 # C
+c = 3e8 # m/s
+relativistic = True
 
 class System:
     def __init__(self, electric_field, magnetic_field):
         self.e_field = electric_field
         self.b_field = magnetic_field
         self.particles = []
-        self.solutions = []
-        self.solved = False
-
-    def lorentzForce(self, x, t, q, m):
-        # x takes the form [rx, ry, rz, vx, vy, vz] where r is the input position vector and v is the input velocity vector
-
-        r = np.array([x[0], x[1], x[2]])
-        v = np.array([x[3], x[4], x[5]])
-        inv_m = 1 / m
-
-        a = q * (self.e_field.at(r, t) + np.cross(v, self.b_field.at(r, t))) * inv_m
-
-        return [v[0], v[1], v[2], a[0], a[1], a[2]]
 
     def addParticle(self, particle):
         self.particles.append(particle)
 
-    def solve(self, t):
+    def plot(self, T, dt):
+        fig = plt.figure(figsize=plt.figaspect(0.5)*1.5)
+        ax = fig.gca(projection='3d')
+        # fig, axs = plt.subplots(3)
+
         for particle in self.particles:
-            self.solutions.append(odeint(self.lorentzForce, particle.stateVars(), t, args=(particle.charge(), particle.mass())))
-        self.solved = True
+            steps = int(mt.ceil(T / dt))
 
-    def plot(self):
-        if self.solved is False:
-            sys.exit("error: run system.solve() before plotting")
-        else:
-            fig = plt.figure()
-            ax = fig.add_subplot(111, projection='3d')
+            R = np.zeros((steps, 3))
+            V = np.zeros((steps, 3))
+            mu = np.zeros((steps, 1))
+            B = np.zeros((steps, 1))
+            wn = np.zeros((steps, 1))
 
-            for solution in self.solutions:
-                plt.plot(solution[:, 0], solution[:, 1], solution[:, 2])
+            for t in range(steps):
+                r, v = particle.advance(self.e_field, self.b_field, dt)
+                mu[t] = particle.moment(self.b_field)
+                B[t] = np.linalg.norm(self.b_field.at(r))
+                wn[t] = (abs(particle.q) * B[t]) / particle.m
+                R[t, :] = r
+                V[t, :] = v
 
-            ax.set_xlabel('X')
-            ax.set_ylabel('Y')
-            ax.set_zlabel('Z')
-
-            plt.show()
+            # axs[0].plot(wn)
+            # axs[1].plot(R[:, 0], label='x')
+            # axs[1].plot(R[:, 1], label='y')
+            # axs[1].plot(R[:, 2], label='z')
+            # axs[1].legend()
+            # axs[2].plot(B)
+            # plt.plot(X_gca, Y_gca, Z_gca, '--')
+            max_range = np.array([R[:,0].max()-R[:,0].min(), R[:,1].max()-R[:,1].min(), R[:,2].max()-R[:,2].min()]).max() / 2.
+            mid_x = (R[:,0].max()+R[:,0].min()) * 0.5
+            mid_y = (R[:,1].max()+R[:,1].min()) * 0.5
+            mid_z = (R[:,2].max()+R[:,2].min()) * 0.5
+            ax.set_xlim(mid_x - max_range, mid_x + max_range)
+            ax.set_ylim(mid_y - max_range, mid_y + max_range)
+            ax.set_zlim(mid_z - max_range, mid_z + max_range)
+            plt.plot(R[:, 0], R[:, 1], R[:, 2])
+        # ax.set_xlabel('X')
+        # ax.set_ylabel('Y')
+        # ax.set_zlabel('Z')
+        plt.show()
 
 class Particle:
-    def __init__(self, r, v, q, m):
-        self.r = r
-        self.v = v
+    def __init__(self, r0, v0, q, m):
         self.q = q
         self.m = m
+        self.r = r0
+        self.v = v0
 
-    def stateVars(self):
-        return [self.r[0], self.r[1], self.r[2], self.v[0], self.v[1], self.v[2]]
+    def v_par(self, b_field):
+        B = b_field.at(self.r)
+        return np.dot(self.v, B) / np.linalg.norm(B)
 
-    def charge(self):
-        return self.q
+    def v_perp(self, b_field):
+        B = b_field.at(self.r)
+        v_parallel = self.v_par(b_field)
+        return self.v - v_parallel * B / np.linalg.norm(B)
 
-    def mass(self):
-        return self.m
+    def moment(self, b_field):
+        B = b_field.at(self.r)
+        v_perpendicular = self.v_perp(b_field)
+        return self.m * 0.5 * np.dot(v_perpendicular, v_perpendicular) / np.linalg.norm(B)
+
+    def pitch_angle(self, b_field):
+        B = b_field.at(self.r)
+        return np.arccos(np.dot(self.v, B) / (np.linalg.norm(self.v), np.linalg.norm(B)))
+
+    def advance(self, e_field, b_field, dt):
+        if relativistic is False:
+            # Non-relativistic Boris method
+            E = e_field.at(self.r)
+            B = b_field.at(self.r)
+
+            q_prime = dt * self.q * 0.5 / self.m
+            h = q_prime * B
+            s = 2 * h / (1 + np.dot(h, h))
+            u = self.v + q_prime * E
+            u_prime = u + np.cross(u + np.cross(u, h), s)
+
+            self.v = u_prime + q_prime * E
+            self.r += self.v * dt
+        else:
+            # Relativistic Boris method
+            gamma_n = (1 - np.dot(self.v, self.v) / c**2)**(-0.5)
+            u_n = gamma_n * self.v
+            x_n12 = self.r + self.v * 0.5 * dt
+
+            u_minus = u_n + self.q * dt * 0.5 * e_field.at(x_n12) / self.m
+            gamma_n12 = (1 + np.dot(u_minus, u_minus) / c**2)**(0.5)
+            t = b_field.at(x_n12) * self.q * dt * 0.5 / (self.m * gamma_n12)
+            s = 2 * t / (1 + np.dot(t, t))
+            u_plus = u_minus + np.cross(u_minus + np.cross(u_minus, t), s)
+            u_n1 = u_plus + self.q * dt * 0.5 * e_field.at(x_n12) / self.m
+            v_avg = (u_n1 + u_n) * 0.5 / gamma_n12
+
+            u_n1 = u_n + (self.q / self.m) * (e_field.at(x_n12) + np.cross(v_avg, b_field.at(x_n12))) * dt
+            gamma_n1 = (1 + np.dot(u_n1, u_n1) / c**2)**(0.5)
+            x_n1 = x_n12 + u_n1 * 0.5 * dt / gamma_n1
+
+            self.v = u_n1 / gamma_n1
+            self.r = x_n1
+
+        return (self.r, self.v)
 
 class Field:
     def __init__(self):
@@ -83,12 +141,12 @@ class Field:
 class UniformField(Field):
     # A uniform field. Simply specify the strength and the axis it
     # should be parallel to, 'x', 'y', or 'z'
-    
+
     def __init__(self, strength, axis):
         self.field = np.array([0, 0, 0])
         self.field[axis_num[axis]] = strength
 
-    def at(self, r, t):
+    def at(self, r):
         return self.field
 
 class DipoleField(Field):
@@ -96,70 +154,71 @@ class DipoleField(Field):
     # the (electric) dipole moment, strength corresponds to the magnitude
     # of qd while axis refers to the direction of the dipole's axis of symmetry
 
-    def __init__(self, strength, axis):
-        self.moment = np.array([0, 0, 0])
-        self.moment[axis_num[axis]] = strength
+    def __init__(self, d, q, axis):
+        self.p = np.array([0, 0, 0])
+        self.p[axis_num[axis]] = d * q
 
-    def at(self, r, t):
-        r_mag = np.linalg.norm(r)
-        return ( r * (3 * np.dot(r, self.moment)) / (r_mag**5) - self.moment / (r_mag**3) )
+    def at(self, r):
+        # return dipole(self.p, r, np.array([0, 0, 0]))
+        return dipole_coords(r[0], r[1], r[2])
+        # r_mag = np.linalg.norm(r)
+        # r_unit = r / r_mag
+        # return 3 * (np.dot(self.p, r_unit) * r_unit - self.p) / (4 * np.pi * epsilon0 * r_mag**3)
 
-class OscillatingField(Field):
-    # Either a temporally or spatially oscillating field. Its parameters are its
-    # strength, the axis it lies along, its frequency (in space or time), and
-    # whether the field is temporally varying (True) or spatially varying (False)
+def dipole_coords(x, y, z):
+    r = np.sqrt(x**2 + y**2 + z**2)
 
-    def __init__(self, strength, axis, freq, time=False):
-        self.axis = axis_num[axis]
-        self.field = np.array([0, 0, 0])
-        self.field[self.axis] = strength
-        self.freq = freq
-        self.time = time
+    M = -8e15
 
-    def at(self, r, t):
-        if self.time is True:
-            return self.field * np.sin(2*np.pi*self.freq*t)
-        else:
-            return self.field * np.sin(2*np.pi*self.freq*r[self.axis])
+    B_x = 3*M * (x*z) / (r**5)
+    B_y = 3*M * (y*z) / (r**5)
+    B_z = M * (3*z**2 - r**2) / (r**5)
 
-if __name__ == '__main__':
-    '''
-    # This code is for plotting the visualization of a dipole field.
+    return np.array([B_x, B_y, B_z])
 
-    xs = np.arange(-5, 6, 1.3)
-    ys = np.arange(-5, 6, 1.3)
-    zs = np.arange(-5, 6, 1.3)
+def plot_field(field, x_len, y_len, z_len, nodes):
+    x = np.linspace(-x_len * 0.5, x_len * 0.5, nodes)
+    y = np.linspace(-y_len * 0.5, y_len * 0.5, nodes)
+    z = np.linspace(-z_len * 0.5, z_len * 0.5, nodes)
 
-    xv, yv, zv = np.meshgrid(xs, ys, zs)
+    xv, yv, zv = np.meshgrid(x, y, z)
+    uv, vv, wv = np.meshgrid(x, y, z)
 
-    u = xv * (3 * zv) / (xv**2 + yv**2 + zv**2)**(2.5)
-    v = yv * (3 * zv) / (xv**2 + yv**2 + zv**2)**(2.5)
-    w = zv * (3 * zv) / (xv**2 + yv**2 + zv**2)**(2.5) - 1 / (xv**2 + yv**2 + zv**2)**(1.5)
+    for i in range(nodes):
+        for j in range(nodes):
+            for k in range(nodes):
+                uv[i][j][k], vv[i][j][k], wv[i][j][k] = field.at([xv[i][j][k], yv[i][j][k], zv[i][j][k]])
 
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-
-    plt.quiver(xv, yv, zv, u, v, w, normalize=True, cmap='hsv')
+    ax = fig.gca(projection='3d')
+    ax.quiver(xv, yv, zv, uv, vv, wv, length=0.5, normalize=True)
     plt.show()
-    '''
 
+if __name__ == '__main__':
     # Setup the electric and magnetic fields of the system. Superposition to be implemented in the future.
-    e_field = OscillatingField(0.2, 'y', 3, False)
-    b_field = DipoleField(1, 'z')
+    e_field = UniformField(0, 'z')
+    B = 1e8 # -8e15
+    b_field = DipoleField(B, 1, 'z')
 
     # Create the system to be studied.
     system = System(e_field, b_field)
 
+    # x = np.linspace(-5, 5, 20)
+    # y = np.linspace(-5, 5, 20)
+
+    # xv, yv = np.meshgrid(x, y)
+
+    E = 50e6 # eV
+    gamma = E / (0.511e6) + 1
+    v = c * np.sqrt(1 - gamma**(-2)) # m/s
     # Add particles. The first array is the particle's position, the second is the particle's velocity.
     # The third argument is the particle's charge and the fourth is its mass.
-    system.addParticle( Particle(np.array([0.2, 0.2, 0]), np.array([-0.1, 0.3, 0.5]), -qe, me) )
-    system.addParticle( Particle(np.array([0, 0.3, 0.3]), np.array([0.05, 0.0, -0.2]), qe, mp) )
-    system.addParticle( Particle(np.array([-0.1, -0.2, -0.25]), np.array([0.1, 0.15, 0.2]), qe, mp) )
-
-    # The list of times to solve for
-    t = np.linspace(0, 40, 4001)
+    d = 5 * 6.371e6
+    theta = np.pi / 4
+    system.addParticle( Particle(np.array([d, 0., 0.]), np.array([0., v * np.cos(theta), v * np.sin(theta)]), -qe, me) )
 
     # Call these last. They solve the trajectories and plot the solutions
-    system.solve(t)
-    system.plot()
-
+    T = 1
+    dt = 1e-4
+    system.plot(T, dt)
+    # plot_field(b_field, 10, 10, 10, 8)
