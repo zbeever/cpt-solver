@@ -159,22 +159,15 @@ class DipoleField(Field):
         self.p[axis_num[axis]] = d * q
 
     def at(self, r):
-        # return dipole(self.p, r, np.array([0, 0, 0]))
-        return dipole_coords(r[0], r[1], r[2])
-        # r_mag = np.linalg.norm(r)
-        # r_unit = r / r_mag
-        # return 3 * (np.dot(self.p, r_unit) * r_unit - self.p) / (4 * np.pi * epsilon0 * r_mag**3)
+        [x, y, z] = r
+        R = np.sqrt(x**2 + y**2 + z**2)
+        M = -8e15
 
-def dipole_coords(x, y, z):
-    r = np.sqrt(x**2 + y**2 + z**2)
+        B_x = 3*M * (x*z) / (R**5)
+        B_y = 3*M * (y*z) / (R**5)
+        B_z = M * (3*z**2 - R**2) / (R**5)
 
-    M = -8e15
-
-    B_x = 3*M * (x*z) / (r**5)
-    B_y = 3*M * (y*z) / (r**5)
-    B_z = M * (3*z**2 - r**2) / (r**5)
-
-    return np.array([B_x, B_y, B_z])
+        return np.array([B_x, B_y, B_z])
 
 def plot_field(field, x_len, y_len, z_len, nodes):
     x = np.linspace(-x_len * 0.5, x_len * 0.5, nodes)
