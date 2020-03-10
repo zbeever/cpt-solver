@@ -1,0 +1,74 @@
+import numpy as np
+
+from constants import *
+
+class Field:
+    def __init__(self):
+        return
+
+    def at(self, r, t):
+        return
+
+class UniformField(Field):
+    # A uniform field. Simply specify the strength and the axis it
+    # should be parallel to, 'x', 'y', or 'z'
+
+    def __init__(self, strength, axis):
+        self.field = np.array([0, 0, 0])
+        self.field[axis_num[axis]] = strength
+
+    def at(self, r):
+        return self.field
+
+class DipoleField(Field):
+    # A dipole field generated from two nearby charges. Relative to
+    # the (electric) dipole moment, strength corresponds to the magnitude
+    # of qd while axis refers to the direction of the dipole's axis of symmetry
+
+    def __init__(self, d, q, axis):
+        self.p = np.array([0, 0, 0])
+        self.p[axis_num[axis]] = d * q
+
+    def at(self, r):
+        r_mag = np.linalg.norm(r)
+        r_unit = r / r_mag
+        k = 1 / (4 * np.pi * epsilon0)
+
+        return k * (3 * np.dot(self.p, r_unit) * r_unit - self.p) * r_mag**(-3)
+
+class EarthDipole(Field):
+    # The dipole model of the Earth's magnetic field.
+
+    def __init__(self):
+        self.M = -8e15
+
+    def at(self, r):
+        [x, y, z] = r
+        R = np.sqrt(x**2 + y**2 + z**2)
+
+        B_x = 3 * self.M * (x * z) / (R**5)
+        B_y = 3 * self.M * (y * z) / (R**5)
+        B_z = self.M * (3 * z**2 - R**2) / (R**5)
+
+        return np.array([B_x, B_y, B_z])
+
+def plot_field(field, x_len, y_len, z_len, nodes):
+    # Given one of the above fields, the dimensions of the area to plot, and the nodes
+    # at which to display the field values, plots the field.
+
+    x = np.linspace(-x_len * 0.5, x_len * 0.5, nodes)
+    y = np.linspace(-y_len * 0.5, y_len * 0.5, nodes)
+    z = np.linspace(-z_len * 0.5, z_len * 0.5, nodes)
+
+    xv, yv, zv = np.meshgrid(x, y, z)
+    uv, vv, wv = np.meshgrid(x, y, z)
+
+    for i in range(nodes):
+        for j in range(nodes):
+            for k in range(nodes):
+                uv[i][j][k], vv[i][j][k], wv[i][j][k] = field.at([xv[i][j][k], yv[i][j][k], zv[i][j][k]])
+
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    ax.quiver(xv, yv, zv, uv, vv, wv, length=0.5, normalize=True)
+    plt.show()
