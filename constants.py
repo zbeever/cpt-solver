@@ -9,3 +9,6 @@ mp = 1.672e-27 # kg
 qe = 1.602e-19 # C
 c = 3e8 # m/s
 Re = 6.371e6 # m
+
+def gamma(v):
+    return (1 - (v/c)**2)**(-0.5)

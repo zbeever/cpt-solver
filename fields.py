@@ -1,5 +1,4 @@
 import numpy as np
-
 from constants import *
 
 class Field:
@@ -9,12 +8,33 @@ class Field:
     def at(self, r, t):
         return
 
+    def __add__(self, other):
+        return CombinedField(self, other)
+
+class CombinedField(Field):
+    def __init__(self, field0, field1):
+        self.field0 = field0
+        self.field1 = field1
+
+    def at(self, r):
+        return self.field0.at(r) + self.field1.at(r)
+
+class ZeroField(Field):
+    # A uniform field. Simply specify the strength and the axis it
+    # should be parallel to, 'x', 'y', or 'z'
+
+    def __init__(self):
+        return
+
+    def at(self, r):
+        return np.array([0., 0., 0.])
+
 class UniformField(Field):
     # A uniform field. Simply specify the strength and the axis it
     # should be parallel to, 'x', 'y', or 'z'
 
     def __init__(self, strength, axis):
-        self.field = np.array([0, 0, 0])
+        self.field = np.array([0., 0., 0.])
         self.field[axis_num[axis]] = strength
 
     def at(self, r):
