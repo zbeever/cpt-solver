@@ -27,7 +27,10 @@ class Particle:
         return self.v
 
     def v_par(self, B):
-        return np.dot(self.v, B) / np.linalg.norm(B)
+        v_dot_B = np.dot(self.v, B)
+        B_norm = np.linalg.norm(B)
+
+        return v_dot_B / B_norm
 
     def v_perp(self, B):
         v_parallel = self.v_par(B)
@@ -35,14 +38,17 @@ class Particle:
         return np.linalg.norm(v_perpendicular)
 
     def p(self):
-        return (self.m * self.v) / np.sqrt(1. - np.dot(self.v, self.v) / c**2.)
+        gamma_v = gamma(np.linalg.norm(self.v))
+        return gamma_v * self.m * self.v
 
     def E(self):
-        return self.m * c**2. * (1. / np.sqrt(1. - np.dot(self.v, self.v) / c**2.) - 1.)
+        E0 = self.m * c**2.
+        gamma_v = gamma(np.linalg.norm(self.v))
+        return E0 * (gamma_v - 1.)
 
     def moment(self, B):
         v_perpendicular = self.v_perp(B)
-        return self.m * .5 * v_perpendicular**2 / np.linalg.norm(B)
+        return .5 * self.m * v_perpendicular**2 / np.linalg.norm(B)
 
     def pitch_angle(self, B):
         return np.mod(np.arctan(self.v_perp(B) / self.v_par(B)), np.pi)
@@ -51,7 +57,7 @@ class Particle:
         if 'pitch_angle' in self.history and 'position' in self.history:
             z = self.history['position'][:, 2]
             z_sign = np.sign(z)
-            equatorial_crossing = ((np.roll(z_sign, 1) - z_sign) != 0).astype(int)
+            equatorial_crossing = ((np.roll(z_sign, 1) - z_sign) != 0).astype(int) # We assume the equator is located in the x-y plane at z = 0
             indices = np.argwhere(equatorial_crossing == 1)
 
             eq_pitch_angles = []
@@ -77,23 +83,15 @@ class Particle:
 
     def gyroradius(self, B):
         gamma_v = gamma(np.linalg.norm(self.v))
-        m = self.m
         v_perp = self.v_perp(B)
         q_abs = abs(self.q)
         B_norm = np.linalg.norm(B)
-
-        log.info(f'gyrorad-params: gamma(v): {gamma_v}, m: {m}, v_perp: {v_perp}, q_abs: {q_abs}, B: {B_norm}')
-
         return gamma_v * self.m * v_perp / (q_abs * B_norm)
 
     def gyrofreq(self, B):
         q_abs = abs(self.q)
         B_norm = np.linalg.norm(B)
         gamma_v = gamma(np.linalg.norm(self.v))
-        m = self.m
-
-        log.info(f'gyrofreq-params: abs(q): {q_abs}, norm(B): {B_norm}, gamma(v): {gamma_v}, m: {m}')
-
         return q_abs * B_norm / (gamma_v * self.m)
 
 diagnostics = {
