@@ -1,4 +1,5 @@
 import numpy as np
+from matplotlib import pyplot as plt
 from constants import *
 
 class Field:
@@ -39,14 +40,24 @@ class UniformField(Field):
     def at(self, r):
         return self.field
 
-class DipoleField(Field):
-    # A dipole field generated from two nearby charges. Relative to
-    # the (electric) dipole moment, strength corresponds to the magnitude
-    # of qd while axis refers to the direction of the dipole's axis of symmetry
+class MagneticDipoleField(Field):
+    # A dipole field generated from a current loop.
 
-    def __init__(self, d, q, axis):
-        self.p = np.array([0, 0, 0])
-        self.p[axis_num[axis]] = d * q
+    def __init__(self, current, signed_area):
+        self.m = current * signed_area
+
+    def at(self, r):
+        r_mag = np.linalg.norm(r)
+        r_unit = r / r_mag
+        k = mu0 / (4 * np.pi)
+
+        return k * (3 * np.dot(self.m, r_unit) * r_unit - self.m) * r_mag**(-3)
+
+class ElectricDipoleField(Field):
+    # A dipole field generated from two nearby charges.
+
+    def __init__(self, charge, displacement):
+        self.p = charge * displacement
 
     def at(self, r):
         r_mag = np.linalg.norm(r)
