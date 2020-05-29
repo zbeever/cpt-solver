@@ -67,9 +67,10 @@ class Particle:
 
             self.history['equatorial_pitch_angle'] = eq_pitch_angles
 
-    def gca(self, fs):
+    def gca(self, dt):
         if 'gyrofreq' in self.history and 'position' in self.history:
-            b, a = signal.butter(4, 0.01)
+            self.history['gyrofreq']
+            b, a = signal.butter(4, np.amin(self.history['gyrofreq']) / (2 * np.pi) * 0.2, fs=(1. / dt))
             zi = signal.lfilter_zi(b, a)
 
             x, _ = signal.lfilter(b, a, self.history['position'][:, 0], zi=zi*self.history['position'][0, 0])
