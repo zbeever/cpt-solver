@@ -3,6 +3,7 @@ import math as mt
 import numpy as np
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+
 from constants import *
 from particles import *
 from integrators import *

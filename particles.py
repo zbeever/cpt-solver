@@ -76,7 +76,7 @@ class Particle:
             self.history['gca'][:, 2] = z
 
     def gyroradius(self, B):
-        gamma_v = gamma(np.linalg.norm(v))
+        gamma_v = gamma(np.linalg.norm(self.v))
         m = self.m
         v_perp = self.v_perp(B)
         q_abs = abs(self.q)

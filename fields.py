@@ -31,11 +31,10 @@ class ZeroField(Field):
 
 class UniformField(Field):
     # A uniform field. Simply specify the strength and the axis it
-    # should be parallel to, 'x', 'y', or 'z'
+    # should be parallel to
 
     def __init__(self, strength, axis):
-        self.field = np.array([0., 0., 0.])
-        self.field[axis_num[axis]] = strength
+        self.field = (axis / np.linalg.norm(axis)) * strength
 
     def at(self, r):
         return self.field
