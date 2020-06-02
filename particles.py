@@ -83,7 +83,7 @@ def equatorial_pitch_angle(pitch_angle, position):
     return eq_pitch_angles
 
 def gca(dt, position, gyrofreq):
-    b, a = signal.butter(4, np.amin(gyrofreq) / (2 * np.pi) * 0.333, fs=(1. / dt))
+    b, a = signal.butter(4, np.amin(gyrofreq) / (2 * np.pi) * 0.1, fs=(1. / dt))
     zi = signal.lfilter_zi(b, a)
 
     x, _ = signal.lfilter(b, a, position[:, 0], zi=zi*position[0, 0])
