@@ -53,35 +53,6 @@ class Particle:
     def pitch_angle(self, B):
         return np.mod(np.arctan2(self.v_perp(B), abs(self.v_par(B))), np.pi)
 
-    def equatorial_pitch_angle(self):
-        if 'pitch_angle' in self.history and 'position' in self.history:
-            z = self.history['position'][:, 2]
-            z_sign = np.sign(z)
-            equatorial_crossing = ((np.roll(z_sign, 1) - z_sign) != 0).astype(int) # We assume the equator is located in the x-y plane at z = 0
-            indices = np.argwhere(equatorial_crossing == 1)
-
-            eq_pitch_angles = []
-
-            for i in indices:
-                eq_pitch_angles.append((self.history['pitch_angle'][i] + self.history['pitch_angle'][i - 1]) * 0.5)
-
-            self.history['equatorial_pitch_angle'] = eq_pitch_angles
-
-    def gca(self, dt):
-        if 'gyrofreq' in self.history and 'position' in self.history:
-            self.history['gyrofreq']
-            b, a = signal.butter(4, np.amin(self.history['gyrofreq']) / (2 * np.pi) * 0.333, fs=(1. / dt))
-            zi = signal.lfilter_zi(b, a)
-
-            x, _ = signal.lfilter(b, a, self.history['position'][:, 0], zi=zi*self.history['position'][0, 0])
-            y, _ = signal.lfilter(b, a, self.history['position'][:, 1], zi=zi*self.history['position'][0, 1])
-            z, _ = signal.lfilter(b, a, self.history['position'][:, 2], zi=zi*self.history['position'][0, 2])
-
-            self.history['gca'] = np.zeros(np.shape(self.history['position']))
-            self.history['gca'][:, 0] = x
-            self.history['gca'][:, 1] = y
-            self.history['gca'][:, 2] = z
-
     def gyroradius(self, B):
         gamma_v = gamma(np.linalg.norm(self.v))
         v_perp = self.v_perp(B)
@@ -97,6 +68,34 @@ class Particle:
 
     def b_strength(self, B):
         return np.linalg.norm(B)
+
+def equatorial_pitch_angle(pitch_angle, position):
+    z = position[:, 2]
+    z_sign = np.sign(z)
+    equatorial_crossing = ((np.roll(z_sign, 1) - z_sign) != 0).astype(int) # We assume the equator is located in the x-y plane at z = 0
+    indices = np.argwhere(equatorial_crossing == 1)
+
+    eq_pitch_angles = []
+
+    for i in indices:
+        eq_pitch_angles.append((pitch_angle[i] + pitch_angle[i - 1]) * 0.5)
+
+    return eq_pitch_angles
+
+def gca(dt, position, gyrofreq):
+    b, a = signal.butter(4, np.amin(gyrofreq) / (2 * np.pi) * 0.333, fs=(1. / dt))
+    zi = signal.lfilter_zi(b, a)
+
+    x, _ = signal.lfilter(b, a, position[:, 0], zi=zi*position[0, 0])
+    y, _ = signal.lfilter(b, a, position[:, 1], zi=zi*position[0, 1])
+    z, _ = signal.lfilter(b, a, position[:, 2], zi=zi*position[0, 2])
+
+    gca_trajectory = np.zeros(np.shape(position))
+    gca_trajectory[:, 0] = x
+    gca_trajectory[:, 1] = y
+    gca_trajectory[:, 2] = z
+
+    return gca_trajectory
 
 diagnostics = {
     'position': {'func': Particle.r, 'requires_B': False, 'dims': 3, 'label': 'Position (m)'},

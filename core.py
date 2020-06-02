@@ -1,6 +1,7 @@
 import sys
 import math as mt
 import numpy as np
+from multiprocessing import Pool, freeze_support, cpu_count
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -16,29 +17,45 @@ class Solver:
         self.e_field = e_field
         self.steps = None
         self.particles = []
+        self.diagnostics = []
 
     def add_particle(self, particle):
         self.particles.append(particle)
 
     def solve(self, T, diagnostic_list):
         self.steps = int(mt.ceil(T / self.integrator.dt))
+        self.diagnostics = diagnostic_list
 
-        for particle in self.particles:
-            for param in diagnostic_list:
-                particle.history[param] = np.zeros((self.steps, diagnostics[param]['dims']))
+        pool = Pool(cpu_count())
+        histories = pool.map(self.solve_particle, self.particles)
 
-            for t in range(self.steps):
-                particle.r, particle.v = self.integrator.step(particle, self.e_field, self.b_field)
+        for i, particle in enumerate(self.particles):
+            particle.history = histories[i]
 
-                for param in diagnostic_list:
+    def solve_particle(self, particle):
+        history = {}
+        for param in self.diagnostics:
+            if param in diagnostics:
+                history[param] = np.zeros((self.steps, diagnostics[param]['dims']))
+
+        for t in range(self.steps):
+            particle.r, particle.v = self.integrator.step(particle, self.e_field, self.b_field)
+
+            for param in self.diagnostics:
+                if param in diagnostics:
                     if diagnostics[param]['requires_B']:
                         B = self.b_field.at(particle.r)
-                        particle.history[param][t] = diagnostics[param]['func'](particle, B)
+                        history[param][t] = diagnostics[param]['func'](particle, B)
                     else:
-                        particle.history[param][t] = diagnostics[param]['func'](particle)
+                        history[param][t] = diagnostics[param]['func'](particle)
 
-            #if 'eq_pitch_angle' in diagnostic_list:
-                #particle.equatorial_pitch_angle()
+        if 'eq_pitch_angle' in self.diagnostics:
+            history['eq_pitch_angle'] = equatorial_pitch_angle(history['pitch_angle'], history['position'])
+
+        if 'gca' in self.diagnostics:
+            history['gca'] = gca(self.integrator.dt, history['position'], history['gyrofreq'])
+
+        return history
 
     def plot_3d(self, diagnostic_list):
         fig = plt.figure(figsize=plt.figaspect(0.5) * 0.8)
