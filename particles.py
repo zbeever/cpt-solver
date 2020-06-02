@@ -51,7 +51,7 @@ class Particle:
         return .5 * self.m * v_perpendicular**2 / np.linalg.norm(B)
 
     def pitch_angle(self, B):
-        return np.mod(np.arctan(self.v_perp(B) / self.v_par(B)), np.pi)
+        return np.mod(np.arctan2(self.v_perp(B), abs(self.v_par(B))), np.pi)
 
     def equatorial_pitch_angle(self):
         if 'pitch_angle' in self.history and 'position' in self.history:
@@ -70,7 +70,7 @@ class Particle:
     def gca(self, dt):
         if 'gyrofreq' in self.history and 'position' in self.history:
             self.history['gyrofreq']
-            b, a = signal.butter(4, np.amin(self.history['gyrofreq']) / (2 * np.pi) * 0.2, fs=(1. / dt))
+            b, a = signal.butter(4, np.amin(self.history['gyrofreq']) / (2 * np.pi) * 0.333, fs=(1. / dt))
             zi = signal.lfilter_zi(b, a)
 
             x, _ = signal.lfilter(b, a, self.history['position'][:, 0], zi=zi*self.history['position'][0, 0])
@@ -95,6 +95,9 @@ class Particle:
         gamma_v = gamma(np.linalg.norm(self.v))
         return q_abs * B_norm / (gamma_v * self.m)
 
+    def b_strength(self, B):
+        return np.linalg.norm(B)
+
 diagnostics = {
     'position': {'func': Particle.r, 'requires_B': False, 'dims': 3, 'label': 'Position (m)'},
     'velocity': {'func': Particle.v, 'requires_B': False, 'dims': 3, 'label': 'Velocity (m/s)'},
@@ -104,5 +107,6 @@ diagnostics = {
     'energy': {'func': Particle.E, 'requires_B': False, 'dims': 1, 'label': 'Energy (eV)'},
     'pitch_angle': {'func': Particle.pitch_angle, 'requires_B': True, 'dims': 1, 'label': 'Pitch Angle (radians)'},
     'gyroradius': {'func': Particle.gyroradius, 'requires_B': True, 'dims': 1, 'label': 'Gyroradius (m)'},
-    'gyrofreq': {'func': Particle.gyrofreq, 'requires_B': True, 'dims': 1, 'label': 'Gyrofrequency (rad/s)'}
+    'gyrofreq': {'func': Particle.gyrofreq, 'requires_B': True, 'dims': 1, 'label': 'Gyrofrequency (rad/s)'},
+    'b_strength': {'func': Particle.b_strength, 'requires_B': True, 'dims': 1, 'label': 'B Field (T)'}
 }
