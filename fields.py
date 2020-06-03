@@ -6,24 +6,10 @@ class Field:
     def __init__(self):
         return
 
-    def at(self, r, t):
+    def at(self, r):
         return
 
-    def __add__(self, other):
-        return CombinedField(self, other)
-
-class CombinedField(Field):
-    def __init__(self, field0, field1):
-        self.field0 = field0
-        self.field1 = field1
-
-    def at(self, r):
-        return self.field0.at(r) + self.field1.at(r)
-
 class ZeroField(Field):
-    # A uniform field. Simply specify the strength and the axis it
-    # should be parallel to, 'x', 'y', or 'z'
-
     def __init__(self):
         return
 
@@ -82,23 +68,33 @@ class EarthDipole(Field):
 
         return np.array([B_x, B_y, B_z])
 
-def plot_field(field, x_len, y_len, z_len, nodes):
-    # Given one of the above fields, the dimensions of the area to plot, and the nodes
-    # at which to display the field values, plots the field.
+def plot_field(field, axis, nodes, plot_size):
+    x = np.linspace(-plot_size, plot_size, nodes)
+    y = np.linspace(-plot_size, plot_size, nodes)
 
-    x = np.linspace(-x_len * 0.5, x_len * 0.5, nodes)
-    y = np.linspace(-y_len * 0.5, y_len * 0.5, nodes)
-    z = np.linspace(-z_len * 0.5, z_len * 0.5, nodes)
+    U, V = np.meshgrid(x, y)
+    X, Y = np.meshgrid(x, y)
 
-    xv, yv, zv = np.meshgrid(x, y, z)
-    uv, vv, wv = np.meshgrid(x, y, z)
+    if axis_num[axis] == 0:
+        for i in range(nodes):
+            for j in range(nodes):
+                W, U[i][j], V[i][j] = field.at(np.array([1e-20, X[i][j], Y[i][j]]))
+    elif axis_num[axis] == 1:
+        for i in range(nodes):
+            for j in range(nodes):
+                U[i][j], W, V[i][j] = field.at(np.array([X[i][j], 1e-20, Y[i][j]]))
+    elif axis_num[axis] == 2:
+        for i in range(nodes):
+            for j in range(nodes):
+                U[i][j], V[i][j], W  = field.at(np.array([X[i][j], Y[i][j], 1e-20]))
 
-    for i in range(nodes):
-        for j in range(nodes):
-            for k in range(nodes):
-                uv[i][j][k], vv[i][j][k], wv[i][j][k] = field.at([xv[i][j][k], yv[i][j][k], zv[i][j][k]])
+    fig, ax = plt.subplots()
+    color = 2 * np.log(np.hypot(U, V))
+    ax.streamplot(X, Y, U, V, color=color, linewidth=1, cmap=plt.cm.jet, density=2, arrowstyle='wedge', arrowsize=1.)
 
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    ax.quiver(xv, yv, zv, uv, vv, wv, length=0.5, normalize=True)
+    ax.set_xlabel('$x$')
+    ax.set_ylabel('$y$')
+    ax.set_xlim(-plot_size, plot_size)
+    ax.set_ylim(-plot_size, plot_size)
+    ax.set_aspect('equal')
     plt.show()
