@@ -5,4 +5,4 @@ Solver designed to calculate and plot the trajectory of charged particles in the
 Navigate to the project directory using the terminal and run the file with `python core.py` The included code has comments that should make adding particles and changing the background fields self-explanatory.
 
 ## Prerequisites
-You'll need Numpy, Scipy, and Matplotlib.
+You'll need Numpy, Scipy, and Matplotlib. You'll also need the Python version of the Geopack library, maintained by Sheng Tian. You can install it using `pip install geopack`.
