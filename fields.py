@@ -68,33 +68,37 @@ class EarthDipole(Field):
 
         return np.array([B_x, B_y, B_z])
 
-def plot_field(field, axis, nodes, plot_size):
-    x = np.linspace(-plot_size, plot_size, nodes)
-    y = np.linspace(-plot_size, plot_size, nodes)
+def plot_field(field, axis, nodes, x_lims, y_lims, size = (10, 10)):
+    x = np.linspace(x_lims[0], x_lims[1], nodes)
+    y = np.linspace(y_lims[0], y_lims[1], nodes)
 
     U, V = np.meshgrid(x, y)
     X, Y = np.meshgrid(x, y)
+
+    fig, ax = plt.subplots(figsize=size)
 
     if axis_num[axis] == 0:
         for i in range(nodes):
             for j in range(nodes):
                 W, U[i][j], V[i][j] = field.at(np.array([1e-20, X[i][j], Y[i][j]]))
+                ax.set_xlabel('$y$')
+                ax.set_ylabel('$z$')
     elif axis_num[axis] == 1:
         for i in range(nodes):
             for j in range(nodes):
                 U[i][j], W, V[i][j] = field.at(np.array([X[i][j], 1e-20, Y[i][j]]))
+                ax.set_xlabel('$x$')
+                ax.set_ylabel('$z$')
     elif axis_num[axis] == 2:
         for i in range(nodes):
             for j in range(nodes):
                 U[i][j], V[i][j], W  = field.at(np.array([X[i][j], Y[i][j], 1e-20]))
+                ax.set_xlabel('$x$')
+                ax.set_ylabel('$y$')
 
-    fig, ax = plt.subplots()
     color = 2 * np.log(np.hypot(U, V))
     ax.streamplot(X, Y, U, V, color=color, linewidth=1, cmap=plt.cm.jet, density=2, arrowstyle='wedge', arrowsize=1.)
 
-    ax.set_xlabel('$x$')
-    ax.set_ylabel('$y$')
-    ax.set_xlim(-plot_size, plot_size)
-    ax.set_ylim(-plot_size, plot_size)
-    ax.set_aspect('equal')
+    ax.set_xlim(x_lims[0], x_lims[1])
+    ax.set_ylim(y_lims[0], y_lims[1])
     plt.show()
