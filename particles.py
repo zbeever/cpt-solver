@@ -47,7 +47,7 @@ class Particle:
         return E0 * (gamma_v - 1.)
 
     def moment(self, B):
-        v_perpendicular = self.v_perp(B)
+        v_perpendicular = self.v_perp(B) # This is not exact; drift velocities should first be subtracted from v before computing the perpendicular velocity
         return .5 * self.m * v_perpendicular**2 / np.linalg.norm(B)
 
     def pitch_angle(self, B):

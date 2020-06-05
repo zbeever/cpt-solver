@@ -1,4 +1,5 @@
 import numpy as np
+from geopack import geopack as gp
 from matplotlib import pyplot as plt
 from constants import *
 
@@ -67,6 +68,22 @@ class EarthDipole(Field):
         B_z = self.M * (3 * z**2 - R**2) / (R**5)
 
         return np.array([B_x, B_y, B_z])
+
+class Tsyganenko89(Field):
+    def __init__(self, Kp_):
+        self.Kp = Kp_
+        
+    def at(self, r, t = 4.01e7, sw_v = np.array([-400., 0., 0.])):
+        k = 1. / Re
+        x_gsm = r[0] * k
+        y_gsm = r[1] * k
+        z_gsm = r[2] * k
+        
+        ps = gp.recalc(t, sw_v[0], sw_v[1], sw_v[2])
+        bx, by, bz = gp.igrf_gsm(x_gsm, y_gsm, z_gsm)
+        dbx, dby, dbz = gp.t89.t89(self.Kp, ps, x_gsm, y_gsm, z_gsm)
+        
+        return np.array([bx + dbx, by + dby, bz + dbz]) * 1e-9
 
 def plot_field(field, axis, nodes, x_lims, y_lims, size = (10, 10)):
     x = np.linspace(x_lims[0], x_lims[1], nodes)
