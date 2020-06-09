@@ -22,6 +22,33 @@ class Solver:
     def add_particle(self, particle):
         self.particles.append(particle)
 
+    def populate(self, num_particles, pos_dist, E_dist, pitch_angle_dist, phase_angle_dist):
+        for i in range(num_particles):
+            r = pos_dist.sample()
+            K = E_dist.sample()
+            pitch_angle = pitch_angle_dist.sample()
+            phase_angle = phase_angle_dist.sample()
+
+            B = self.b_field.at(r) 
+            
+            local_z = B
+            if np.dot(local_z, local_z) == 0:
+                local_z = np.array([0., 0., 1.])
+            else:
+                local_z = local_z / np.linalg.norm(local_z)
+
+            local_x = -r
+            if np.dot(local_x, local_x) == 0:
+                local_x = np.array([-1., 0., 0.])
+            else:
+                local_x = local_x / np.linalg.norm(local_x)
+
+            local_y = np.cross(local_z, local_x)
+
+            v_dir = np.sin(pitch_angle) * np.cos(phase_angle) * local_x + np.sin(pitch_angle) * np.sin(phase_angle) * local_y + np.cos(pitch_angle) * local_z
+
+            self.add_particle(Particle(r, v_dir, K, -qe, me))
+
     def solve(self, T, diagnostic_list):
         self.steps = int(mt.ceil(T / self.integrator.dt))
         self.diagnostics = diagnostic_list
