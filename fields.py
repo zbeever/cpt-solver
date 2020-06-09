@@ -8,9 +8,12 @@ class Field:
         return
 
     def at(self, r):
-        return
+        raise NotImplementedError()
 
 class ZeroField(Field):
+    """Zero field. Returns the zero vector.
+    """
+
     def __init__(self):
         return
 
@@ -18,8 +21,12 @@ class ZeroField(Field):
         return np.array([0., 0., 0.])
 
 class UniformField(Field):
-    # A uniform field. Simply specify the strength and the axis it
-    # should be parallel to
+    """Uniform field.
+
+    Args:
+    strength (float): The strength of the field in T or V/m.
+    axis (numpy array): Direction along which the field lines point.
+    """
 
     def __init__(self, strength, axis):
         self.field = (axis / np.linalg.norm(axis)) * strength
@@ -28,7 +35,12 @@ class UniformField(Field):
         return self.field
 
 class MagneticDipoleField(Field):
-    # A dipole field generated from a current loop.
+    """Magnetic dipole field formed from a current loop.
+
+    Args:
+    current (float): The value of the current in amperes.
+    signed_area (numpy array): Normal vector to the plane of the loop whose length is numerically equal to the loop's enclosed area in m^2.
+    """
 
     def __init__(self, current, signed_area):
         self.m = current * signed_area
@@ -41,7 +53,12 @@ class MagneticDipoleField(Field):
         return k * (3 * np.dot(self.m, r_unit) * r_unit - self.m) * r_mag**(-3)
 
 class ElectricDipoleField(Field):
-    # A dipole field generated from two nearby charges.
+    """Electric dipole field formed from two opposite charges.
+
+    Args:
+    charge (float): The magnitude of one of the charges in C.
+    displacement (numpy array): The vector pointing from the negative charge to the positive one in m.
+    """
 
     def __init__(self, charge, displacement):
         self.p = charge * displacement
@@ -54,7 +71,8 @@ class ElectricDipoleField(Field):
         return k * (3 * np.dot(self.p, r_unit) * r_unit - self.p) * r_mag**(-3)
 
 class EarthDipole(Field):
-    # The dipole model of the Earth's magnetic field.
+    """Dipole model of Earth's magnetic field with the dipole moment oriented along the z axis.
+    """
 
     def __init__(self):
         self.M = -8e15
@@ -70,7 +88,7 @@ class EarthDipole(Field):
         return np.array([B_x, B_y, B_z])
 
 class Tsyganenko89(Field):
-    """A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1989 model (DOI: 10.1016/0032-0633(89)90066-4) and the IGRF model.
+    """Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1989 model (DOI: 10.1016/0032-0633(89)90066-4) and the IGRF model.
 
     Args:
     Kp (int): A mapping to the Kp geomagnetic activity index. Acceptable values range from 1 to 7, mapping to values between 0 and 10, inclusive.
@@ -99,8 +117,7 @@ class Tsyganenko89(Field):
         return np.array([bx + dbx, by + dby, bz + dbz]) * 1e-9
 
 class Tsyganenko96(Field):
-    """
-    A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1996 model (DOI: 10.1029/96JA02735) and the IGRF model.
+    """Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1996 model (DOI: 10.1029/96JA02735) and the IGRF model.
 
     Args:
     par (array): A 10-element array containing the model parameters.
@@ -116,6 +133,13 @@ class Tsyganenko96(Field):
         self.par = par_
         
     def at(self, r, t = 4.01e7, sw_v = np.array([-400., 0., 0.])):
+        """Get the magnetic field vector at the given location.
+
+        Args:
+        r (numpy array): The desired position (in GSM coordinates).
+        t (int): Universal time (in seconds). Defaults to a value that gives a magnetotail aligned with the x axis.
+        sw_v (numpy array): The solar wind velocity vector (in GSM coordinates). Defaults to [-400, 0, 0].
+        """
         k = 1. / Re
         x_gsm = r[0] * k
         y_gsm = r[1] * k
@@ -128,8 +152,7 @@ class Tsyganenko96(Field):
         return np.array([bx + dbx, by + dby, bz + dbz]) * 1e-9
 
 class Tsyganenko01(Field):
-    """
-    A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2001 model (DOI: 10.1029/2001JA000220) and the IGRF model.
+    """Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2001 model (DOI: 10.1029/2001JA000220) and the IGRF model.
 
     Args:
     par (array): A 10-element array containing the model parameters.
@@ -147,6 +170,13 @@ class Tsyganenko01(Field):
         self.par = par_
         
     def at(self, r, t = 4.01e7, sw_v = np.array([-400., 0., 0.])):
+        """Get the magnetic field vector at the given location.
+
+        Args:
+        r (numpy array): The desired position (in GSM coordinates).
+        t (int): Universal time (in seconds). Defaults to a value that gives a magnetotail aligned with the x axis.
+        sw_v (numpy array): The solar wind velocity vector (in GSM coordinates). Defaults to [-400, 0, 0].
+        """
         k = 1. / Re
         x_gsm = r[0] * k
         y_gsm = r[1] * k
@@ -159,8 +189,7 @@ class Tsyganenko01(Field):
         return np.array([bx + dbx, by + dby, bz + dbz]) * 1e-9
 
 class Tsyganenko04(Field):
-    """
-    A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2004 model (DOI: 10.1029/2004JA010798) and the IGRF model.
+    """Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2004 model (DOI: 10.1029/2004JA010798) and the IGRF model.
 
     Args:
     par (array): A 10-element array containing the model parameters.
@@ -181,6 +210,13 @@ class Tsyganenko04(Field):
         self.par = par_
         
     def at(self, r, t = 4.01e7, sw_v = np.array([-400., 0., 0.])):
+        """Get the magnetic field vector at the given location.
+
+        Args:
+        r (numpy array): The desired position (in GSM coordinates).
+        t (int): Universal time (in seconds). Defaults to a value that gives a magnetotail aligned with the x axis.
+        sw_v (numpy array): The solar wind velocity vector (in GSM coordinates). Defaults to [-400, 0, 0].
+        """
         k = 1. / Re
         x_gsm = r[0] * k
         y_gsm = r[1] * k
