@@ -104,6 +104,7 @@ diagnostics = {
     'par_velocity': {'func': Particle.v_perp, 'requires_B': True, 'dims': 1, 'label': 'Velocity (m/s)'},
     'momentum': {'func': Particle.p, 'requires_B': False, 'dims': 3, 'label': 'Momentum (kgm/s)'},
     'energy': {'func': Particle.E, 'requires_B': False, 'dims': 1, 'label': 'Energy (eV)'},
+    'moment': {'func': Particle.moment, 'requires_B': True, 'dims': 1, 'label': 'Magnetic Moment (ampere*m^2)'},
     'pitch_angle': {'func': Particle.pitch_angle, 'requires_B': True, 'dims': 1, 'label': 'Pitch Angle (radians)'},
     'gyroradius': {'func': Particle.gyroradius, 'requires_B': True, 'dims': 1, 'label': 'Gyroradius (m)'},
     'gyrofreq': {'func': Particle.gyrofreq, 'requires_B': True, 'dims': 1, 'label': 'Gyrofrequency (rad/s)'},

@@ -7,7 +7,7 @@ class Field:
     def __init__(self):
         return
 
-    def at(self, r):
+    def at(self, r, t = 0.0):
         raise NotImplementedError()
 
 class ZeroField(Field):
@@ -17,7 +17,7 @@ class ZeroField(Field):
     def __init__(self):
         return
 
-    def at(self, r):
+    def at(self, r, t = 0.0):
         return np.array([0., 0., 0.])
 
 class UniformField(Field):
@@ -31,8 +31,25 @@ class UniformField(Field):
     def __init__(self, strength, axis):
         self.field = (axis / np.linalg.norm(axis)) * strength
 
-    def at(self, r):
+    def at(self, r, t = 0.0):
         return self.field
+
+class Harris(Field):
+    """Harris current sheet model.
+
+    Args:
+    B0_ (float): Magnitude of the x component of the magnetic field in the asymptotic region.
+    Bn_ (float): Magnitude of the z component of the magnetic field.
+    d_ (float): Scale length of the field reversal region.
+    """
+
+    def __init__(self, B0_, Bn_, d_):
+        self.B0 = B0_
+        self.Bn = Bn_
+        self.d = d_
+
+    def at(self, r, t = 0.0):
+        return np.array([self.B0 * np.tanh(r[2] / self.d), 0., self.Bn])
 
 class MagneticDipoleField(Field):
     """Magnetic dipole field formed from a current loop.
@@ -45,7 +62,7 @@ class MagneticDipoleField(Field):
     def __init__(self, current, signed_area):
         self.m = current * signed_area
 
-    def at(self, r):
+    def at(self, r, t = 0.0):
         r_mag = np.linalg.norm(r)
         r_unit = r / r_mag
         k = mu0 / (4 * np.pi)
@@ -63,7 +80,7 @@ class ElectricDipoleField(Field):
     def __init__(self, charge, displacement):
         self.p = charge * displacement
 
-    def at(self, r):
+    def at(self, r, t = 0.0):
         r_mag = np.linalg.norm(r)
         r_unit = r / r_mag
         k = 1 / (4 * np.pi * epsilon0)
@@ -77,7 +94,7 @@ class EarthDipole(Field):
     def __init__(self):
         self.M = -8e15
 
-    def at(self, r):
+    def at(self, r, t = 0.0):
         [x, y, z] = r
         R = np.sqrt(x**2 + y**2 + z**2)
 
@@ -94,10 +111,11 @@ class Tsyganenko89(Field):
     Kp (int): A mapping to the Kp geomagnetic activity index. Acceptable values range from 1 to 7, mapping to values between 0 and 10, inclusive.
     """
 
-    def __init__(self, Kp_):
+    def __init__(self, Kp_, t0_ = 4.01e7):
         self.Kp = Kp_
+        self.t0 = t0_
         
-    def at(self, r, t = 4.01e7, sw_v = np.array([-400., 0., 0.])):
+    def at(self, r, t = 0.0, sw_v = np.array([-400., 0., 0.])):
         """Get the magnetic field vector at the given location.
 
         Args:
@@ -110,7 +128,7 @@ class Tsyganenko89(Field):
         y_gsm = r[1] * k
         z_gsm = r[2] * k
         
-        ps = gp.recalc(t, sw_v[0], sw_v[1], sw_v[2])
+        ps = gp.recalc(t + self.t0, sw_v[0], sw_v[1], sw_v[2])
         bx, by, bz = gp.igrf_gsm(x_gsm, y_gsm, z_gsm)
         dbx, dby, dbz = gp.t89.t89(self.Kp, ps, x_gsm, y_gsm, z_gsm)
         
@@ -129,10 +147,11 @@ class Tsyganenko96(Field):
     par[4-9]: Not used
     """
 
-    def __init__(self, par_):
+    def __init__(self, par_, t0_ = 4.01e7):
         self.par = par_
+        self.t0 = t0_
         
-    def at(self, r, t = 4.01e7, sw_v = np.array([-400., 0., 0.])):
+    def at(self, r, t = 0.0, sw_v = np.array([-400., 0., 0.])):
         """Get the magnetic field vector at the given location.
 
         Args:
@@ -145,7 +164,7 @@ class Tsyganenko96(Field):
         y_gsm = r[1] * k
         z_gsm = r[2] * k
         
-        ps = gp.recalc(t, sw_v[0], sw_v[1], sw_v[2])
+        ps = gp.recalc(t + self.t0, sw_v[0], sw_v[1], sw_v[2])
         bx, by, bz = gp.igrf_gsm(x_gsm, y_gsm, z_gsm)
         dbx, dby, dbz = gp.t96.t96(self.par, ps, x_gsm, y_gsm, z_gsm)
         
@@ -166,10 +185,11 @@ class Tsyganenko01(Field):
     par[6-9]: Not used
     """
 
-    def __init__(self, par_):
+    def __init__(self, par_, t0_ = 4.01e7):
         self.par = par_
+        self.t0 = t0_
         
-    def at(self, r, t = 4.01e7, sw_v = np.array([-400., 0., 0.])):
+    def at(self, r, t = 0.0, sw_v = np.array([-400., 0., 0.])):
         """Get the magnetic field vector at the given location.
 
         Args:
@@ -182,7 +202,7 @@ class Tsyganenko01(Field):
         y_gsm = r[1] * k
         z_gsm = r[2] * k
         
-        ps = gp.recalc(t, sw_v[0], sw_v[1], sw_v[2])
+        ps = gp.recalc(t + self.t0, sw_v[0], sw_v[1], sw_v[2])
         bx, by, bz = gp.igrf_gsm(x_gsm, y_gsm, z_gsm)
         dbx, dby, dbz = gp.t01.t01(self.par, ps, x_gsm, y_gsm, z_gsm)
         
@@ -206,10 +226,11 @@ class Tsyganenko04(Field):
     par[9] (Wb2): Driving parameter of the secondary mode of the Birkeland current. Saturates at 0.88 +- 0.06. Peak estimate 20 to 100.
 
     """
-    def __init__(self, par_):
+    def __init__(self, par_, t0_ = 4.01e7):
         self.par = par_
+        self.t0 = t0_
         
-    def at(self, r, t = 4.01e7, sw_v = np.array([-400., 0., 0.])):
+    def at(self, r, t = 0.0, sw_v = np.array([-400., 0., 0.])):
         """Get the magnetic field vector at the given location.
 
         Args:
@@ -222,13 +243,13 @@ class Tsyganenko04(Field):
         y_gsm = r[1] * k
         z_gsm = r[2] * k
         
-        ps = gp.recalc(t, sw_v[0], sw_v[1], sw_v[2])
+        ps = gp.recalc(t + self.t0, sw_v[0], sw_v[1], sw_v[2])
         bx, by, bz = gp.igrf_gsm(x_gsm, y_gsm, z_gsm)
         dbx, dby, dbz = gp.t04.t04(self.par, ps, x_gsm, y_gsm, z_gsm)
         
         return np.array([bx + dbx, by + dby, bz + dbz]) * 1e-9
 
-def plot_field(field, axis, nodes, x_lims, y_lims, size = (10, 10)):
+def plot_field(field, axis, nodes, x_lims, y_lims, size = (10, 10), t = 0.0):
     x = np.linspace(x_lims[0], x_lims[1], nodes)
     y = np.linspace(y_lims[0], y_lims[1], nodes)
 
@@ -240,19 +261,19 @@ def plot_field(field, axis, nodes, x_lims, y_lims, size = (10, 10)):
     if axis_num[axis] == 0:
         for i in range(nodes):
             for j in range(nodes):
-                W, U[i][j], V[i][j] = field.at(np.array([1e-20, X[i][j], Y[i][j]]))
+                W, U[i][j], V[i][j] = field.at(np.array([1e-20, X[i][j], Y[i][j]]), t)
                 ax.set_xlabel('$y$')
                 ax.set_ylabel('$z$')
     elif axis_num[axis] == 1:
         for i in range(nodes):
             for j in range(nodes):
-                U[i][j], W, V[i][j] = field.at(np.array([X[i][j], 1e-20, Y[i][j]]))
+                U[i][j], W, V[i][j] = field.at(np.array([X[i][j], 1e-20, Y[i][j]]), t)
                 ax.set_xlabel('$x$')
                 ax.set_ylabel('$z$')
     elif axis_num[axis] == 2:
         for i in range(nodes):
             for j in range(nodes):
-                U[i][j], V[i][j], W  = field.at(np.array([X[i][j], Y[i][j], 1e-20]))
+                U[i][j], V[i][j], W  = field.at(np.array([X[i][j], Y[i][j], 1e-20]), t)
                 ax.set_xlabel('$x$')
                 ax.set_ylabel('$y$')
 

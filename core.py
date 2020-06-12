@@ -29,7 +29,7 @@ class Solver:
             pitch_angle = pitch_angle_dist.sample()
             phase_angle = phase_angle_dist.sample()
 
-            B = self.b_field.at(r) 
+            B = self.b_field.at(r, 0) 
             
             local_z = B
             if np.dot(local_z, local_z) == 0:
@@ -38,6 +38,7 @@ class Solver:
                 local_z = local_z / np.linalg.norm(local_z)
 
             local_x = -r
+            local_x = local_x - np.dot(local_x, B) * B / np.dot(B, B)
             if np.dot(local_x, local_x) == 0:
                 local_x = np.array([-1., 0., 0.])
             else:
@@ -66,12 +67,12 @@ class Solver:
                 history[param] = np.zeros((self.steps, diagnostics[param]['dims']))
 
         for t in range(self.steps):
-            particle.r, particle.v = self.integrator.step(particle, self.e_field, self.b_field)
+            particle.r, particle.v = self.integrator.step(particle, self.e_field, self.b_field, t)
 
             for param in self.diagnostics:
                 if param in diagnostics:
                     if diagnostics[param]['requires_B']:
-                        B = self.b_field.at(particle.r)
+                        B = self.b_field.at(particle.r, t)
                         history[param][t] = diagnostics[param]['func'](particle, B)
                     else:
                         history[param][t] = diagnostics[param]['func'](particle)

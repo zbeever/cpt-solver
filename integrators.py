@@ -16,7 +16,8 @@ class BorisRel(Integrator):
         self.dt = dt
         return
 
-    def step(self, particle, e_field, b_field):
+    def step(self, particle, e_field, b_field, step_num):
+        time = step_num * self.dt
         # The standard relativistic factor, gamma
         gamma_n = (1 - np.dot(particle.v, particle.v) / c**2)**(-0.5)
 
@@ -27,8 +28,8 @@ class BorisRel(Integrator):
         x_n12 = particle.r + particle.v * 0.5 * self.dt
 
         # Field at this new location
-        E = e_field.at(x_n12)
-        B = b_field.at(x_n12)
+        E = e_field.at(x_n12, time)
+        B = b_field.at(x_n12, time)
 
         # Inversion of Lorentz equation to obtain the velocity
         u_minus = u_n + particle.q * self.dt * 0.5 * E / particle.m
