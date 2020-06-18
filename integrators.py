@@ -18,6 +18,7 @@ class BorisRel(Integrator):
 
     def step(self, particle, e_field, b_field, step_num):
         time = step_num * self.dt
+
         # The standard relativistic factor, gamma
         gamma_n = (1 - np.dot(particle.v, particle.v) / c**2)**(-0.5)
 

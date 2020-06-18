@@ -10,6 +10,7 @@ class Field:
     def at(self, r, t = 0.0):
         raise NotImplementedError()
 
+
 class ZeroField(Field):
     """Zero field. Returns the zero vector.
     """
@@ -19,6 +20,7 @@ class ZeroField(Field):
 
     def at(self, r, t = 0.0):
         return np.array([0., 0., 0.])
+
 
 class UniformField(Field):
     """Uniform field.
@@ -33,6 +35,7 @@ class UniformField(Field):
 
     def at(self, r, t = 0.0):
         return self.field
+
 
 class Harris(Field):
     """Harris current sheet model.
@@ -50,6 +53,7 @@ class Harris(Field):
 
     def at(self, r, t = 0.0):
         return np.array([self.B0 * np.tanh(r[2] / self.d), 0., self.Bn])
+
 
 class MagneticDipoleField(Field):
     """Magnetic dipole field formed from a current loop.
@@ -69,6 +73,7 @@ class MagneticDipoleField(Field):
 
         return k * (3 * np.dot(self.m, r_unit) * r_unit - self.m) * r_mag**(-3)
 
+
 class ElectricDipoleField(Field):
     """Electric dipole field formed from two opposite charges.
 
@@ -87,6 +92,7 @@ class ElectricDipoleField(Field):
 
         return k * (3 * np.dot(self.p, r_unit) * r_unit - self.p) * r_mag**(-3)
 
+
 class EarthDipole(Field):
     """Dipole model of Earth's magnetic field with the dipole moment oriented along the z axis.
     """
@@ -103,6 +109,7 @@ class EarthDipole(Field):
         B_z = self.M * (3 * z**2 - R**2) / (R**5)
 
         return np.array([B_x, B_y, B_z])
+
 
 class Tsyganenko89(Field):
     """Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1989 model (DOI: 10.1016/0032-0633(89)90066-4) and the IGRF model.

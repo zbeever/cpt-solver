@@ -9,12 +9,12 @@ class Particle:
         self.q = q
         self.m = m
 
-        gamma = (E * 1.602e-19) / (m * c**2.) + 1.
-        v = c * np.sqrt(1. - gamma**(-2.)) # m/s
+        gamma = eV_to_J(E) / (m * c ** 2.0) + 1.0  # E = gamma*m*c^2 = K + m*c^2
+        v = c * np.sqrt(1. - gamma ** (-2.0))           # m/s
 
         self.r = r0
-        if (np.dot(v_dir, v_dir) == 0.):
-            self.v = np.array([0., 0., 0.])
+        if np.dot(v_dir, v_dir) == 0.0:
+            self.v = np.array([0.0, 0.0, 0.0])
         else:
             self.v = v_dir / np.linalg.norm(v_dir) * v
 

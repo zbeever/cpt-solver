@@ -10,6 +10,8 @@ from particles import *
 from integrators import *
 from fields import *
 
+import numba
+
 class Solver:
     def __init__(self, integrator, b_field = ZeroField(), e_field = ZeroField()):
         self.integrator = integrator
