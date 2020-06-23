@@ -1,28 +1,25 @@
 import numpy as np
-from geopack import geopack as gp
+from utils import *
+import scipy.constants as sp
+from geopack_numba import geopack as gp
+from geopack_numba import t89 as test_t89
+from numba import njit, jit
 from matplotlib import pyplot as plt
+
 from constants import *
 
-class Field:
-    def __init__(self):
-        return
-
-    def at(self, r, t = 0.0):
-        raise NotImplementedError()
-
-
-class ZeroField(Field):
+def zero_field():
     """Zero field. Returns the zero vector.
     """
 
-    def __init__(self):
-        return
+    @njit
+    def field(r, t = 0.):
+        return np.zeros(3)
 
-    def at(self, r, t = 0.0):
-        return np.array([0., 0., 0.])
+    return field
 
 
-class UniformField(Field):
+def uniform_field(strength, axis):
     """Uniform field.
 
     Args:
@@ -30,14 +27,17 @@ class UniformField(Field):
     axis (numpy array): Direction along which the field lines point.
     """
 
-    def __init__(self, strength, axis):
-        self.field = (axis / np.linalg.norm(axis)) * strength
+    norm_axis = axis / np.linalg.norm(axis)
+    field_vec = strength * norm_axis
 
-    def at(self, r, t = 0.0):
-        return self.field
+    @njit
+    def field(r, t = 0.):
+        return field_vec
+
+    return field
 
 
-class Harris(Field):
+def harris_cs_model(b0, bn, d):
     """Harris current sheet model.
 
     Args:
@@ -46,16 +46,14 @@ class Harris(Field):
     d_ (float): Scale length of the field reversal region.
     """
 
-    def __init__(self, B0_, Bn_, d_):
-        self.B0 = B0_
-        self.Bn = Bn_
-        self.d = d_
+    @njit
+    def field(r, t = 0.):
+        return np.array([self.b0 * np.tanh(r[2] / self.d), 0., self.bn])
 
-    def at(self, r, t = 0.0):
-        return np.array([self.B0 * np.tanh(r[2] / self.d), 0., self.Bn])
+    return field
 
 
-class MagneticDipoleField(Field):
+def magnetic_dipole(current, signed_area):
     """Magnetic dipole field formed from a current loop.
 
     Args:
@@ -63,18 +61,20 @@ class MagneticDipoleField(Field):
     signed_area (numpy array): Normal vector to the plane of the loop whose length is numerically equal to the loop's enclosed area in m^2.
     """
 
-    def __init__(self, current, signed_area):
-        self.m = current * signed_area
+    m = current * signed_area
 
-    def at(self, r, t = 0.0):
+    @njit
+    def field(r, t = 0.):
         r_mag = np.linalg.norm(r)
         r_unit = r / r_mag
-        k = mu0 / (4 * np.pi)
+        k = sp.mu_0 / (4 * np.pi)
 
-        return k * (3 * np.dot(self.m, r_unit) * r_unit - self.m) * r_mag**(-3)
+        return k * (3 * np.dot(m, r_unit) * r_unit - m) * r_mag**(-3)
+
+    return field
 
 
-class ElectricDipoleField(Field):
+def electric_dipole(charge, displacement):
     """Electric dipole field formed from two opposite charges.
 
     Args:
@@ -82,67 +82,96 @@ class ElectricDipoleField(Field):
     displacement (numpy array): The vector pointing from the negative charge to the positive one in m.
     """
 
-    def __init__(self, charge, displacement):
-        self.p = charge * displacement
+    p = charge * displacement
 
-    def at(self, r, t = 0.0):
+    @njit
+    def field(r, t = 0.):
         r_mag = np.linalg.norm(r)
         r_unit = r / r_mag
-        k = 1 / (4 * np.pi * epsilon0)
+        k = 1 / (4 * np.pi * sp.epsilon_0)
 
-        return k * (3 * np.dot(self.p, r_unit) * r_unit - self.p) * r_mag**(-3)
+        return k * (3 * np.dot(p, r_unit) * r_unit - p) * r_mag**(-3)
+
+    return field
 
 
-class EarthDipole(Field):
+def earth_dipole_axis_aligned():
     """Dipole model of Earth's magnetic field with the dipole moment oriented along the z axis.
     """
 
-    def __init__(self):
-        self.M = -8e15
+    M = -8e15
 
-    def at(self, r, t = 0.0):
+    @njit
+    def field(r, t = 0.0):
         [x, y, z] = r
         R = np.sqrt(x**2 + y**2 + z**2)
 
-        B_x = 3 * self.M * (x * z) / (R**5)
-        B_y = 3 * self.M * (y * z) / (R**5)
-        B_z = self.M * (3 * z**2 - R**2) / (R**5)
+        B_x = 3 * M * (x * z) / (R**5)
+        B_y = 3 * M * (y * z) / (R**5)
+        B_z = M * (3 * z**2 - R**2) / (R**5)
 
         return np.array([B_x, B_y, B_z])
 
+    return field
 
-class Tsyganenko89(Field):
+
+def earth_dipole(t = 0.):
+    gp.recalc(t)
+
+    @njit
+    def field(r, t = 0.):
+        x_gsm = r[0] * inv_Re
+        y_gsm = r[1] * inv_Re
+        z_gsm = r[2] * inv_Re
+
+        field_int = np.asarray(gp.dip(x_gsm, y_gsm, z_gsm))
+
+        return field_int * 1e-9
+
+    return field
+
+
+def igrf(t = 0.):
+    gp.recalc(t)
+
+    @njit
+    def field(r, t = 0.):
+        x_gsm = r[0] * inv_Re
+        y_gsm = r[1] * inv_Re
+        z_gsm = r[2] * inv_Re
+
+        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm))
+
+        return field_int * 1e-9
+
+    return field
+
+
+def t89(Kp, t = 4.01e7, sw_v = np.array([-400., 0., 0.])):
     """Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1989 model (DOI: 10.1016/0032-0633(89)90066-4) and the IGRF model.
 
     Args:
     Kp (int): A mapping to the Kp geomagnetic activity index. Acceptable values range from 1 to 7, mapping to values between 0 and 10, inclusive.
     """
 
-    def __init__(self, Kp_, t0_ = 4.01e7):
-        self.Kp = Kp_
-        self.t0 = t0_
-        
-    def at(self, r, t = 0.0, sw_v = np.array([-400., 0., 0.])):
-        """Get the magnetic field vector at the given location.
+    ps = gp.recalc(t, sw_v[0], sw_v[1], sw_v[2])
 
-        Args:
-        r (numpy array): The desired position (in GSM coordinates).
-        t (int): Universal time (in seconds). Defaults to a value that gives a magnetotail aligned with the x axis.
-        sw_v (numpy array): The solar wind velocity vector (in GSM coordinates). Defaults to [-400, 0, 0].
-        """
-        k = 1. / Re
-        x_gsm = r[0] * k
-        y_gsm = r[1] * k
-        z_gsm = r[2] * k
+    @njit
+    def field(r, t = 0.):
+        x_gsm = r[0] * inv_Re
+        y_gsm = r[1] * inv_Re
+        z_gsm = r[2] * inv_Re
         
-        ps = gp.recalc(t + self.t0, sw_v[0], sw_v[1], sw_v[2])
-        bx, by, bz = gp.igrf_gsm(x_gsm, y_gsm, z_gsm)
-        dbx, dby, dbz = gp.t89.t89(self.Kp, ps, x_gsm, y_gsm, z_gsm)
+        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm))
+        field_ext = np.asarray(test_t89.t89(Kp, ps, x_gsm, y_gsm, z_gsm))
         
-        return np.array([bx + dbx, by + dby, bz + dbz]) * 1e-9
+        return (field_int + field_ext) * 1e-9
 
-class Tsyganenko96(Field):
-    """Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1996 model (DOI: 10.1029/96JA02735) and the IGRF model.
+    return field
+
+
+def t96(par, t0 = 4.01e7):
+    """A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1996 model (DOI: 10.1029/96JA02735) and the IGRF model.
 
     Args:
     par (array): A 10-element array containing the model parameters.
@@ -154,31 +183,23 @@ class Tsyganenko96(Field):
     par[4-9]: Not used
     """
 
-    def __init__(self, par_, t0_ = 4.01e7):
-        self.par = par_
-        self.t0 = t0_
+    @jit
+    def field(r, t = 0., sw_v = np.array([-400., 0., 0.])):
+        x_gsm = r[0] * inv_Re
+        y_gsm = r[1] * inv_Re
+        z_gsm = r[2] * inv_Re
         
-    def at(self, r, t = 0.0, sw_v = np.array([-400., 0., 0.])):
-        """Get the magnetic field vector at the given location.
+        ps = gp.recalc(t + t0, sw_v[0], sw_v[1], sw_v[2])
+        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm))
+        field_ext = np.asarray(gp.t96.t96(par, ps, x_gsm, y_gsm, z_gsm))
+        
+        return (field_int + field_ext) * 1e-9
 
-        Args:
-        r (numpy array): The desired position (in GSM coordinates).
-        t (int): Universal time (in seconds). Defaults to a value that gives a magnetotail aligned with the x axis.
-        sw_v (numpy array): The solar wind velocity vector (in GSM coordinates). Defaults to [-400, 0, 0].
-        """
-        k = 1. / Re
-        x_gsm = r[0] * k
-        y_gsm = r[1] * k
-        z_gsm = r[2] * k
-        
-        ps = gp.recalc(t + self.t0, sw_v[0], sw_v[1], sw_v[2])
-        bx, by, bz = gp.igrf_gsm(x_gsm, y_gsm, z_gsm)
-        dbx, dby, dbz = gp.t96.t96(self.par, ps, x_gsm, y_gsm, z_gsm)
-        
-        return np.array([bx + dbx, by + dby, bz + dbz]) * 1e-9
+    return field
 
-class Tsyganenko01(Field):
-    """Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2001 model (DOI: 10.1029/2001JA000220) and the IGRF model.
+
+def t01(par, t0 = 4.01e7):
+    """A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2001 model (DOI: 10.1029/2001JA000220) and the IGRF model.
 
     Args:
     par (array): A 10-element array containing the model parameters.
@@ -190,33 +211,26 @@ class Tsyganenko01(Field):
     par[4] (G1): A parameter capturing the cross-tail current's dependence on the solar wind. Mathematically, it is defined as the average of V*h(B_perp)*sin^3(theta/2) where V is the solar wind speed, B_perp is the transverse IMF component, theta is the IMF's clock angle, and h is a function that behaves as B_perp^2 for common values of the IMF. A typical value is 6.
     par[5] (G2): A parameter capturing the earthward / tailward shift of the tail current, defined as the average of a*V*Bs, where V is the solar wind speed, Bs is the southward component of the IMF (|Bz| for Bz < 0, 0 otherwise) and a = 0.005. A typical value is 10.
     par[6-9]: Not used
+
     """
 
-    def __init__(self, par_, t0_ = 4.01e7):
-        self.par = par_
-        self.t0 = t0_
+    @jit
+    def field(r, t = 0., sw_v = np.array([-400., 0., 0.])):
+        x_gsm = r[0] * inv_Re
+        y_gsm = r[1] * inv_Re
+        z_gsm = r[2] * inv_Re
         
-    def at(self, r, t = 0.0, sw_v = np.array([-400., 0., 0.])):
-        """Get the magnetic field vector at the given location.
+        ps = gp.recalc(t + t0, sw_v[0], sw_v[1], sw_v[2])
+        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm))
+        field_ext = np.asarray(gp.t01.t01(par, ps, x_gsm, y_gsm, z_gsm))
+        
+        return (field_int + field_ext) * 1e-9
 
-        Args:
-        r (numpy array): The desired position (in GSM coordinates).
-        t (int): Universal time (in seconds). Defaults to a value that gives a magnetotail aligned with the x axis.
-        sw_v (numpy array): The solar wind velocity vector (in GSM coordinates). Defaults to [-400, 0, 0].
-        """
-        k = 1. / Re
-        x_gsm = r[0] * k
-        y_gsm = r[1] * k
-        z_gsm = r[2] * k
-        
-        ps = gp.recalc(t + self.t0, sw_v[0], sw_v[1], sw_v[2])
-        bx, by, bz = gp.igrf_gsm(x_gsm, y_gsm, z_gsm)
-        dbx, dby, dbz = gp.t01.t01(self.par, ps, x_gsm, y_gsm, z_gsm)
-        
-        return np.array([bx + dbx, by + dby, bz + dbz]) * 1e-9
+    return field
 
-class Tsyganenko04(Field):
-    """Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2004 model (DOI: 10.1029/2004JA010798) and the IGRF model.
+
+def t04(par, t0 = 4.01e7):
+    """A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2004 model (DOI: 10.1029/2004JA010798) and the IGRF model.
 
     Args:
     par (array): A 10-element array containing the model parameters.
@@ -231,30 +245,21 @@ class Tsyganenko04(Field):
     par[7] (Wp): Driving parameter of the partial ring current field. Saturates at 75 +- 30. Peak estimate 10 to 50.
     par[8] (Wb1): Driving parameter of the principle mode of the Birkeland current. Saturates at 6.4 +- 1.0. Peak estimate 7 to 30.
     par[9] (Wb2): Driving parameter of the secondary mode of the Birkeland current. Saturates at 0.88 +- 0.06. Peak estimate 20 to 100.
-
     """
-    def __init__(self, par_, t0_ = 4.01e7):
-        self.par = par_
-        self.t0 = t0_
-        
-    def at(self, r, t = 0.0, sw_v = np.array([-400., 0., 0.])):
-        """Get the magnetic field vector at the given location.
 
-        Args:
-        r (numpy array): The desired position (in GSM coordinates).
-        t (int): Universal time (in seconds). Defaults to a value that gives a magnetotail aligned with the x axis.
-        sw_v (numpy array): The solar wind velocity vector (in GSM coordinates). Defaults to [-400, 0, 0].
-        """
-        k = 1. / Re
-        x_gsm = r[0] * k
-        y_gsm = r[1] * k
-        z_gsm = r[2] * k
+    @jit
+    def field(self, r, t = 0.0, sw_v = np.array([-400., 0., 0.])):
+        x_gsm = r[0] * inv_Re
+        y_gsm = r[1] * inv_Re
+        z_gsm = r[2] * inv_Re
         
         ps = gp.recalc(t + self.t0, sw_v[0], sw_v[1], sw_v[2])
-        bx, by, bz = gp.igrf_gsm(x_gsm, y_gsm, z_gsm)
-        dbx, dby, dbz = gp.t04.t04(self.par, ps, x_gsm, y_gsm, z_gsm)
+        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm))
+        field_ext = np.asarray(gp.t04.t04(par, ps, x_gsm, y_gsm, z_gsm))
         
-        return np.array([bx + dbx, by + dby, bz + dbz]) * 1e-9
+        return (field_int + field_ext) * 1e-9
+
+    return field
 
 def plot_field(field, axis, nodes, x_lims, y_lims, size = (10, 10), t = 0.0):
     x = np.linspace(x_lims[0], x_lims[1], nodes)
@@ -268,19 +273,19 @@ def plot_field(field, axis, nodes, x_lims, y_lims, size = (10, 10), t = 0.0):
     if axis_num[axis] == 0:
         for i in range(nodes):
             for j in range(nodes):
-                W, U[i][j], V[i][j] = field.at(np.array([1e-20, X[i][j], Y[i][j]]), t)
+                W, U[i][j], V[i][j] = field(np.array([1e-20, X[i][j], Y[i][j]]), t)
                 ax.set_xlabel('$y$')
                 ax.set_ylabel('$z$')
     elif axis_num[axis] == 1:
         for i in range(nodes):
             for j in range(nodes):
-                U[i][j], W, V[i][j] = field.at(np.array([X[i][j], 1e-20, Y[i][j]]), t)
+                U[i][j], W, V[i][j] = field(np.array([X[i][j], 1e-20, Y[i][j]]), t)
                 ax.set_xlabel('$x$')
                 ax.set_ylabel('$z$')
     elif axis_num[axis] == 2:
         for i in range(nodes):
             for j in range(nodes):
-                U[i][j], V[i][j], W  = field.at(np.array([X[i][j], Y[i][j], 1e-20]), t)
+                U[i][j], V[i][j], W  = field(np.array([X[i][j], Y[i][j], 1e-20]), t)
                 ax.set_xlabel('$x$')
                 ax.set_ylabel('$y$')
 
