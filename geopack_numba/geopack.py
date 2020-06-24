@@ -95,7 +95,8 @@ def load_igrf(ut):
     return g0*f0+g1*f1, h0*f0+h1*f1
 
 
-def igrf_gsw(xgsw,ygsw,zgsw):
+@njit
+def igrf_gsw(xgsw, ygsw, zgsw):
     """
     Calculates components of the main (internal) geomagnetic field in the geocentric solar
     magnetospheric coordinate system, using IAGA international geomagnetic reference model
@@ -110,9 +111,10 @@ def igrf_gsw(xgsw,ygsw,zgsw):
     :param xgsw,ygsw,zgsw: cartesian GSW coordinates (in units Re=6371.2 km)
     :return: hxgsw,hygsw,hzgsw. Cartesian GSW components of the main geomagnetic field in nanotesla
     """
-    xgsm,ygsm,zgsm = gswgsm(xgsw,ygsw,zgsw, 1)
-    bxgsm,bygsm,bzgsm = igrf_gsm(xgsm,ygsm,zgsm)
-    return gswgsm(bxgsm,bygsm,bzgsm, -1)
+    xgsm, ygsm, zgsm = gswgsm(xgsw, ygsw, zgsw, 1)
+    bxgsm, bygsm, bzgsm = igrf_gsm(xgsm, ygsm, zgsm)
+    return gswgsm(bxgsm, bygsm, bzgsm, -1)
+
 
 @njit
 def igrf_gsm(xgsm,ygsm,zgsm):
@@ -249,6 +251,7 @@ def igrf_geo(r,theta,phi):
 
     return br,bt,bf
 
+
 @njit
 def dip(xgsm, ygsm, zgsm):
     """
@@ -282,6 +285,7 @@ def dip(xgsm, ygsm, zgsm):
     return bxgsm, bygsm, bzgsm
 
 
+@njit
 def dip_gsw(xgsw,ygsw,zgsw):
     """
     Calculates gsm components of a geodipole field with the dipole moment
@@ -1018,7 +1022,9 @@ def call_internal_model(inname, x,y,z):
     else:
         raise ValueError
 
-def rhand(x,y,z,parmod,exname,inname):
+# GLOBAL: Takes in psi
+@njit
+def rhand(x,y,z,parmod,exname,inname, ds3):
     """
     Calculates the components of the right hand side vector in the geomagnetic field
     line equation  (a subsidiary subroutine for the subroutine step)
@@ -1033,10 +1039,10 @@ def rhand(x,y,z,parmod,exname,inname):
     :return: r1,r2,r3.
     """
     #  common /geopack1/ a(15),psi,aa(10),ds3,bb(8)
-    global a, psi, aa, ds3, bb
-
-    bxgsm,bygsm,bzgsm = call_external_model(exname, parmod, psi, x,y,z)
-    hxgsm,hygsm,hzgsm = call_internal_model(inname, x,y,z)
+    # global a, psi, aa, bb
+    # global psi
+    bxgsm,bygsm,bzgsm = geopack_numba.t89.t89(parmod, psi, x, y, z) # call_external_model(exname, parmod, psi, x,y,z)
+    hxgsm,hygsm,hzgsm = igrf_gsm(x, y, z) # call_internal_model(inname, x,y,z)
 
     bx=bxgsm+hxgsm
     by=bygsm+hygsm
@@ -1049,7 +1055,8 @@ def rhand(x,y,z,parmod,exname,inname):
 
     return r1,r2,r3
 
-def step(x,y,z, ds,errin,parmod,exname,inname):
+@njit
+def step(x,y,z, ds,errin,parmod,exname,inname, ds3):
     """
     Re-calculates {x,y,z}, making a step along a field line.
     model version, the array parmod contains input parameters for that model
@@ -1067,7 +1074,8 @@ def step(x,y,z, ds,errin,parmod,exname,inname):
     """
 
     # common /geopack1/ a(26),ds3,b(8)
-    global a, ds3, b
+    # global ds3
+    # global a, b
 
     if errin <=0: raise ValueError
     errcur = errin
@@ -1076,11 +1084,11 @@ def step(x,y,z, ds,errin,parmod,exname,inname):
 
     while (errcur >= errin) & (i < maxloop):
         ds3=-ds/3.
-        r11,r12,r13 = rhand(x,y,z,parmod,exname,inname)
-        r21,r22,r23 = rhand(x+r11,y+r12,z+r13,parmod,exname,inname)
-        r31,r32,r33 = rhand(x+.5*(r11+r21),y+.5*(r12+r22),z+.5*(r13+r23),parmod,exname,inname)
-        r41,r42,r43 = rhand(x+.375*(r11+3.*r31),y+.375*(r12+3.*r32),z+.375*(r13+3.*r33),parmod,exname,inname)
-        r51,r52,r53 = rhand(x+1.5*(r11-3.*r31+4.*r41),y+1.5*(r12-3.*r32+4.*r42),z+1.5*(r13-3.*r33+4.*r43),parmod,exname,inname)
+        r11,r12,r13 = rhand(x,y,z,parmod,exname,inname, ds3)
+        r21,r22,r23 = rhand(x+r11,y+r12,z+r13,parmod,exname,inname, ds3)
+        r31,r32,r33 = rhand(x+.5*(r11+r21),y+.5*(r12+r22),z+.5*(r13+r23),parmod,exname,inname, ds3)
+        r41,r42,r43 = rhand(x+.375*(r11+3.*r31),y+.375*(r12+3.*r32),z+.375*(r13+3.*r33),parmod,exname,inname, ds3)
+        r51,r52,r53 = rhand(x+1.5*(r11-3.*r31+4.*r41),y+1.5*(r12-3.*r32+4.*r42),z+1.5*(r13-3.*r33+4.*r43),parmod,exname,inname, ds3)
         errcur=np.abs(r11-4.5*r31+4.*r41-.5*r51)+np.abs(r12-4.5*r32+4.*r42-.5*r52)+np.abs(r13-4.5*r33+4.*r43-.5*r53)
         if errcur < errin: break
 
@@ -1098,7 +1106,9 @@ def step(x,y,z, ds,errin,parmod,exname,inname):
 
     return x,y,z
 
-def trace(xi,yi,zi,dir,rlim=10,r0=1,parmod=2,exname='t89',inname='igrf',maxloop=1000):
+# GLOBAL: Sets dd and dds3
+@njit
+def trace(xi, yi, zi, dir, rlim=10, r0=1, parmod=2, exname='t89', inname='igrf', maxloop=1000):
     """
     Traces a field line from an arbitrary point of space to the earth's surface or
     to a model limiting boundary.
@@ -1138,18 +1148,18 @@ def trace(xi,yi,zi,dir,rlim=10,r0=1,parmod=2,exname='t89',inname='igrf',maxloop=
     """
 
     # common /geopack1/ aa(26),dd,bb(8)
-    global aa, dd, bb, ds3
+    # global dd, ds3
 
     err, l, ds, x,y,z, dd, al = 0.001, 0, 0.5*dir, xi,yi,zi, dir, 0.
-    xx = np.array([x])
-    yy = np.array([y])
-    zz = np.array([z])
+    xx = np.zeros(maxloop)
+    yy = np.zeros(maxloop)
+    zz = np.zeros(maxloop)
 
     # Here we call RHAND just to find out the sign of the radial component of the field
     # vector, and to determine the initial direction of the tracing (i.e., either away
     # or towards Earth):
     ds3 = -ds/3.
-    r1,r2,r3 = rhand(x,y,z,parmod,exname,inname)
+    r1,r2,r3 = rhand(x,y,z,parmod,exname,inname, ds3)
 
     # |ad|=0.01 and its sign follows the rule:
     # (1) if dir=1 (tracing antiparallel to B vector) then the sign of ad is the same as of Br
@@ -1158,7 +1168,7 @@ def trace(xi,yi,zi,dir,rlim=10,r0=1,parmod=2,exname='t89',inname='igrf',maxloop=
     ad=0.01
     if (x*r1+y*r2+z*r3) < 0: ad=-0.01
 
-    rr=np.sqrt(x**2+y**2+z**2)+ad
+    rr = np.sqrt(x**2 + y**2 + z**2) + ad
 
     while l < maxloop:
         ryz=y**2+z**2
@@ -1199,10 +1209,10 @@ def trace(xi,yi,zi,dir,rlim=10,r0=1,parmod=2,exname='t89',inname='igrf',maxloop=
                 al = fc*(r-r0+0.2)
                 ds = dir*al
         rr=r
-        x,y,z = step(x,y,z,ds,err,parmod,exname,inname)
-        xx = np.append(xx,x)
-        yy = np.append(yy,y)
-        zz = np.append(zz,z)
+        x,y,z = step(x,y,z,ds,err,parmod,exname,inname, ds3)
+        xx[l] = x
+        yy[l] = y
+        zz[l] = z
         l += 1
 
     return x,y,z, xx,yy,zz
