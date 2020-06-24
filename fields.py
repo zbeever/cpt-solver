@@ -115,8 +115,8 @@ def earth_dipole_axis_aligned():
     return field
 
 
-def earth_dipole(t = 0.):
-    gp.recalc(t)
+def earth_dipole(t0 = 4.01172e7):
+    gp.recalc(t0)
 
     @njit
     def field(r, t = 0.):
@@ -131,8 +131,8 @@ def earth_dipole(t = 0.):
     return field
 
 
-def igrf(t = 0.):
-    gp.recalc(t)
+def igrf(t0 = 4.01172e7):
+    gp.recalc(t0)
 
     @njit
     def field(r, t = 0.):
@@ -147,14 +147,14 @@ def igrf(t = 0.):
     return field
 
 
-def t89(Kp, t = 4.01e7, sw_v = np.array([-400., 0., 0.])):
+def t89(Kp, t0 = 4.01172e7, sw_v = np.array([-400., 0., 0.])):
     """Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1989 model (DOI: 10.1016/0032-0633(89)90066-4) and the IGRF model.
 
     Args:
     Kp (int): A mapping to the Kp geomagnetic activity index. Acceptable values range from 1 to 7, mapping to values between 0 and 10, inclusive.
     """
 
-    ps = gp.recalc(t, sw_v[0], sw_v[1], sw_v[2])
+    ps = gp.recalc(t0, sw_v[0], sw_v[1], sw_v[2])
 
     @njit
     def field(r, t = 0.):
@@ -170,7 +170,7 @@ def t89(Kp, t = 4.01e7, sw_v = np.array([-400., 0., 0.])):
     return field
 
 
-def t96(par, t0 = 4.01e7):
+def t96(par, t0 = 4.01172e7):
     """A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1996 model (DOI: 10.1029/96JA02735) and the IGRF model.
 
     Args:
