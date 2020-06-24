@@ -187,6 +187,24 @@ def eq_pitch_angle(history):
 
 
 @njit
+def eq_pitch_angle_from_moment(history, intrinsic):
+    num_particles = len(history[:, 0, 0, 0])
+    steps = len(history[0, :, 0, 0])
+
+    mom = magnetic_moment(history, intrinsic)
+    bm  = b_mag(history)
+    v   = velocity(history)
+    
+    history_new = np.zeros((num_particles, steps))
+
+    for i in range(num_particles):
+        b_min = np.amin(bm[i])
+        for j in range(steps):
+            history_new[i, j] = np.arcsin(np.sqrt(mom[i, j] * 2 * b_min / (intrinsic[i, 0] * dot(v[i, j], v[i, j]))))
+            
+    return np.degrees(history_new)
+
+@njit
 def gca_nonrel(history, intrinsic):
     num_particles = len(history[:, 0, 0, 0])
     steps = len(history[0, :, 0, 0])
@@ -230,3 +248,39 @@ def gca_filter(history, intrinsic, dt):
         history_new[i, :, 2] = z
 
     return history_new
+
+
+@njit
+def grad(field, r, eps=1e-6):
+    x_offset = np.array([eps, 0., 0.])
+    y_offset = np.array([0., eps, 0.])
+    z_offset = np.array([0, 0., eps])
+
+    return np.array([(np.linalg.norm(field(r + x_offset)) - np.linalg.norm(field(r - x_offset))) / (2 * eps),
+                     (np.linalg.norm(field(r + y_offset)) - np.linalg.norm(field(r - y_offset))) / (2 * eps),
+                     (np.linalg.norm(field(r + z_offset)) - np.linalg.norm(field(r - z_offset))) / (2 * eps)
+                    ])           
+
+
+@njit
+def jacobian(field, r, eps=1e-6):
+    x_offset = np.array([eps, 0., 0.])
+    y_offset = np.array([0., eps, 0.])
+    z_offset = np.array([0, 0., eps])
+
+    jac = np.zeros((3,3))
+    jac[:, 0] = (field(r + x_offset) - field(r - x_offset)) / (2 * eps)
+    jac[:, 1] = (field(r + y_offset) - field(r - y_offset)) / (2 * eps)
+    jac[:, 2] = (field(r + z_offset) - field(r - z_offset)) / (2 * eps)
+
+    return jac
+
+
+@njit
+def curvature(field, r, eps=1e-6):
+    field_vec = field(r)
+    field_mag = np.linalg.norm(field_vec)
+    grad_field = grad(field, r, eps)
+    grad_perp = grad_field - np.dot(grad_field, field_vec) / field_mag**2 * field_vec
+
+    return np.linalg.norm(grad_perp) / field_mag
