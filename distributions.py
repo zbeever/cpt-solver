@@ -29,21 +29,6 @@ def uniform(min_val, max_val, dims = 1):
     return sample
 
 
-def uniform(min_val, max_val, dims = 1):
-    """Floating point uniform distribution. Can be any number of dimensions.
-
-    Args:
-    min_val: The minimum value.
-    max_val: The maximum value.
-    dims: The number of dimensions spanned by the distribution. Defaults to 1.
-    """
-
-    def sample():
-        return np.random.default_rng().uniform(min_val, max_val, dims)
-
-    return sample
-
-
 def normal(mean, std_dev, dims = 1):
     """Floating point normal distribution. Can be any number of dimensions.
 
