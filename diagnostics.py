@@ -1,4 +1,5 @@
 import numpy as np
+from constants import *
 from numba import njit
 from scipy import constants as sp
 from scipy import signal
@@ -248,39 +249,3 @@ def gca_filter(history, intrinsic, dt):
         history_new[i, :, 2] = z
 
     return history_new
-
-
-@njit
-def grad(field, r, eps=1e-6):
-    x_offset = np.array([eps, 0., 0.])
-    y_offset = np.array([0., eps, 0.])
-    z_offset = np.array([0, 0., eps])
-
-    return np.array([(np.linalg.norm(field(r + x_offset)) - np.linalg.norm(field(r - x_offset))) / (2 * eps),
-                     (np.linalg.norm(field(r + y_offset)) - np.linalg.norm(field(r - y_offset))) / (2 * eps),
-                     (np.linalg.norm(field(r + z_offset)) - np.linalg.norm(field(r - z_offset))) / (2 * eps)
-                    ])           
-
-
-@njit
-def jacobian(field, r, eps=1e-6):
-    x_offset = np.array([eps, 0., 0.])
-    y_offset = np.array([0., eps, 0.])
-    z_offset = np.array([0, 0., eps])
-
-    jac = np.zeros((3,3))
-    jac[:, 0] = (field(r + x_offset) - field(r - x_offset)) / (2 * eps)
-    jac[:, 1] = (field(r + y_offset) - field(r - y_offset)) / (2 * eps)
-    jac[:, 2] = (field(r + z_offset) - field(r - z_offset)) / (2 * eps)
-
-    return jac
-
-
-@njit
-def curvature(field, r, eps=1e-6):
-    field_vec = field(r)
-    field_mag = np.linalg.norm(field_vec)
-    grad_field = grad(field, r, eps)
-    grad_perp = grad_field - np.dot(grad_field, field_vec) / field_mag**2 * field_vec
-
-    return np.linalg.norm(grad_perp) / field_mag
