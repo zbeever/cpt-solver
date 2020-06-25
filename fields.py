@@ -2,7 +2,7 @@ import numpy as np
 from utils import *
 import scipy.constants as sp
 from geopack_numba import geopack as gp
-from geopack_numba import t89 as test_t89
+from geopack_numba import t89 as ext_t89
 from numba import njit, jit
 from matplotlib import pyplot as plt
 
@@ -147,7 +147,7 @@ def igrf(t0 = 4.01172e7):
     return field
 
 
-def t89(Kp, t0 = 4.01172e7, sw_v = np.array([-400., 0., 0.])):
+def t89(Kp, t0 = 4.0118e7, sw_v = np.array([-400., 0., 0.])):
     """Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1989 model (DOI: 10.1016/0032-0633(89)90066-4) and the IGRF model.
 
     Args:
@@ -163,14 +163,14 @@ def t89(Kp, t0 = 4.01172e7, sw_v = np.array([-400., 0., 0.])):
         z_gsm = r[2] * inv_Re
         
         field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm))
-        field_ext = np.asarray(test_t89.t89(Kp, ps, x_gsm, y_gsm, z_gsm))
+        field_ext = np.asarray(ext_t89.t89(Kp, ps, x_gsm, y_gsm, z_gsm))
         
         return (field_int + field_ext) * 1e-9
 
     return field
 
 
-def t96(par, t0 = 4.01172e7):
+def t96(par, t0 = 4.0118e7):
     """A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1996 model (DOI: 10.1029/96JA02735) and the IGRF model.
 
     Args:
@@ -260,38 +260,3 @@ def t04(par, t0 = 4.01e7):
         return (field_int + field_ext) * 1e-9
 
     return field
-
-def plot_field(field, axis, nodes, x_lims, y_lims, size = (10, 10), t = 0.0):
-    x = np.linspace(x_lims[0], x_lims[1], nodes)
-    y = np.linspace(y_lims[0], y_lims[1], nodes)
-
-    U, V = np.meshgrid(x, y)
-    X, Y = np.meshgrid(x, y)
-
-    fig, ax = plt.subplots(figsize=size)
-
-    if axis_num[axis] == 0:
-        for i in range(nodes):
-            for j in range(nodes):
-                W, U[i][j], V[i][j] = field(np.array([1e-20, X[i][j], Y[i][j]]), t)
-                ax.set_xlabel('$y$')
-                ax.set_ylabel('$z$')
-    elif axis_num[axis] == 1:
-        for i in range(nodes):
-            for j in range(nodes):
-                U[i][j], W, V[i][j] = field(np.array([X[i][j], 1e-20, Y[i][j]]), t)
-                ax.set_xlabel('$x$')
-                ax.set_ylabel('$z$')
-    elif axis_num[axis] == 2:
-        for i in range(nodes):
-            for j in range(nodes):
-                U[i][j], V[i][j], W  = field(np.array([X[i][j], Y[i][j], 1e-20]), t)
-                ax.set_xlabel('$x$')
-                ax.set_ylabel('$y$')
-
-    color = 2 * np.log(np.hypot(U, V))
-    ax.streamplot(X, Y, U, V, color=color, linewidth=1, cmap=plt.cm.jet, density=2, arrowstyle='wedge', arrowsize=1.)
-
-    ax.set_xlim(x_lims[0], x_lims[1])
-    ax.set_ylim(y_lims[0], y_lims[1])
-    plt.show()
