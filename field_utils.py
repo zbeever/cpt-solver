@@ -136,6 +136,57 @@ def field_line(field, r, tol):
     return rr
 
 
+@njit
+def b_along_path(field, rr):
+    steps = len(rr[:, 0])
+    field_vec = np.zeros((steps, 3))
+    field_mag = np.zeros(steps)
+    field_rad_mag = np.zeros(steps)
+    
+    for i in range(steps):
+        vec = field(rr[i])
+        
+        field_vec[i] = vec
+        field_mag[i] = np.linalg.norm(vec)
+        field_rad_mag[i] = np.sqrt(vec[0]**2 + vec[1]**2)
+        
+    return field_vec, field_mag, field_rad_mag
+
+
+@njit
+def field_reversal(field, rr):
+    b_vec, b_mag, b_rad_mag = b_along_path(field, rr)
+    return rr[b_rad_mag.argmin()]
+
+
+@njit
+def param_by_eq_pa(field, rr, eq_pa):
+    b_vec, b_mag, b_rad_mag = b_along_path(field, rr)
+    min_ind = b_rad_mag.argmin()
+    
+    b_max = b_mag[min_ind] / np.sin(eq_pa)**2
+    
+    i = min_ind
+    while b_mag[i] < b_max:
+        if i <= 0:
+            break
+        i -= 1
+
+    if i == 0:
+        r = rr[i, :]
+        pa = np.arcsin(b_mag[i] / b_mag[min_ind] * np.sin(eq_pa))
+
+        return r, pa
+    
+    x = (rr[i + 1, 0] - rr[i, 0]) / (b_mag[i + 1] - b_mag[i]) * (b_max - b_mag[i]) + rr[i, 0]
+    y = (rr[i + 1, 1] - rr[i, 1]) / (b_mag[i + 1] - b_mag[i]) * (b_max - b_mag[i]) + rr[i, 1]
+    z = (rr[i + 1, 2] - rr[i, 2]) / (b_mag[i + 1] - b_mag[i]) * (b_max - b_mag[i]) + rr[i, 2]
+    r = np.array([x, y, z])
+    pa = np.arcsin(np.sqrt(np.linalg.norm(field(r)) / b_mag[min_ind]) * np.sin(eq_pa))
+
+    return r, pa
+
+
 def plot_field(field, axis, nodes, x_lims, y_lims, size = (10, 10), t = 0.0):
     x = np.linspace(x_lims[0], x_lims[1], nodes)
     y = np.linspace(y_lims[0], y_lims[1], nodes)

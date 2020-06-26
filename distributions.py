@@ -24,7 +24,10 @@ def uniform(min_val, max_val, dims = 1):
     """
 
     def sample():
-        return np.random.default_rng().uniform(min_val, max_val, dims)
+        if dims == 1:
+            return np.random.default_rng().uniform(min_val, max_val, dims)[0]
+        else:
+            return np.random.default_rng().uniform(min_val, max_val, dims)
 
     return sample
 
