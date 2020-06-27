@@ -5,6 +5,27 @@ from scipy import constants as sp
 from scipy import signal
 from utils import *
 
+
+@njit
+def gamma(v):
+    return 1.0 / np.sqrt(1 - dot(v, v) / sp.c**2)
+
+
+@njit
+def dot(v, w):
+    return v[0] * w[0] + v[1] * w[1] + v[2] * w[2]
+
+
+@njit
+def J_to_eV(E):
+    return 1.0 / sp.e * E
+
+
+@njit
+def eV_to_J(E):
+    return sp.e * E
+
+
 @njit
 def position(history):
     return history[:, :, 0]
@@ -53,21 +74,35 @@ def velocity_par(history):
     v = history[:, :, 1]
     b_field = history[:, :, 2]
 
-    history_new = np.zeros((num_particles, steps, 3))
+    v_vec = np.zeros((num_particles, steps, 3))
+    v_mag = np.zeros((num_particles, steps))
 
     for i in range(num_particles):
         for j in range(steps):
             v_dot_b = dot(v[i, j], b_field[i, j])
             b_squared = dot(b_field[i, j], b_field[i, j])
-            history_new[i, j] = v_dot_b / b_squared * b_field[i, j]
+            v_vec[i, j] = v_dot_b / b_squared * b_field[i, j]
+            v_mag[i, j] = np.sqrt(dot(v_vec[i, j], v_vec[i, j]))
 
-    return history_new
+    return v_vec, v_mag
 
 
 @njit
 def velocity_perp(history):
+    num_particles = len(history[:, 0, 0, 0])
+    steps = len(history[0, :, 0, 0])
+
     velocity = history[:, :, 1]
-    return velocity - velocity_par(history)
+    v_par, v_par_mag = velocity_par(history)
+
+    v_vec = velocity - v_par
+    v_mag = np.zeros((num_particles, steps))
+
+    for i in range(num_particles):
+        for j in range(steps):
+            v_mag[i, j] = np.sqrt(dot(v_vec[i, j], v_vec[i, j]))
+
+    return v_vec, v_mag
 
 
 @njit
@@ -91,7 +126,7 @@ def magnetic_moment(history, intrinsic):
     num_particles = len(history[:, 0, 0, 0])
     steps = len(history[0, :, 0, 0])
 
-    v_perp = velocity_perp(history)
+    v_perp, v_perp_mag = velocity_perp(history)
     b_field = history[:, :, 2]
     history_new = np.zeros((num_particles, steps)) 
 
@@ -109,7 +144,7 @@ def pitch_angle(history):
     num_particles = len(history[:, 0, 0, 0])
     steps = len(history[0, :, 0, 0])
 
-    v_par = velocity_par(history)
+    v_par, v_par_mag = velocity_par(history)
     v_perp = history[:, :, 1] - v_par
     history_new = np.zeros((num_particles, steps)) 
 
@@ -128,7 +163,7 @@ def gyrorad(history, intrinsic):
     steps = len(history[0, :, 0, 0])
 
     v = history[:, :, 1]
-    v_perp = velocity_perp(history)
+    v_perp, v_perp_mag = velocity_perp(history)
     b_field = history[:, :, 2]
     history_new = np.zeros((num_particles, steps)) 
 
@@ -194,7 +229,7 @@ def eq_pitch_angle_from_moment(history, intrinsic):
 
     mom = magnetic_moment(history, intrinsic)
     bm  = b_mag(history)
-    v   = velocity(history)
+    v   = history[:, :, 1, :]
     
     history_new = np.zeros((num_particles, steps))
 
@@ -204,6 +239,49 @@ def eq_pitch_angle_from_moment(history, intrinsic):
             history_new[i, j] = np.arcsin(np.sqrt(mom[i, j] * 2 * b_min / (intrinsic[i, 0] * dot(v[i, j], v[i, j]))))
             
     return np.degrees(history_new)
+
+
+def get_eq_pas(history, intrinsic, dt, threshold=0.2, min_time=5e-3, padding=1e-3):
+    eq_pa_hist = eq_pitch_angle_from_moment(history, intrinsic)
+    
+    all_eq_pas = np.zeros((len(history[:, 0, 0, 0]), len(history[0, :, 0, 0]), 3)) - 1
+    
+    for j in range(len(eq_pa_hist[:, 0])):
+        centered = np.diff(eq_pa_hist[j, :], prepend=eq_pa_hist[j, 0])
+        within_thresh = np.argwhere(np.abs(centered) <= threshold)[:, 0]
+
+        contiguous = np.diff(within_thresh, prepend=within_thresh[0])
+
+        endpoints = []
+
+        pad = int(min_time / dt)
+        stretch = int(padding / dt)
+
+        endpoints = []
+        endpoints_tentative = np.where(np.concatenate(([contiguous[0]], contiguous[:-1] != contiguous[1:], [1])))[0] - 1
+        for i in range(int(len(endpoints_tentative) / 2)):
+            if ((endpoints_tentative[2 * i + 1] - pad) - (endpoints_tentative[2 * i] + pad)) > stretch:
+                endpoints.append(endpoints_tentative[2 * i] + pad)
+                endpoints.append(endpoints_tentative[2 * i + 1] - pad)
+
+        for i in range(int(len(endpoints) / 2)):
+            all_eq_pas[j, i, 0] = np.mean(eq_pa_hist[j, :][within_thresh][endpoints[2 * i]:endpoints[2 * i + 1]])
+            all_eq_pas[j, i, 1] = within_thresh[endpoints[2 * i]]
+            all_eq_pas[j, i, 2] = within_thresh[endpoints[2 * i + 1]]
+    
+    k = 1
+    for i in range(len(all_eq_pas[:, 0, 0])):
+        j = 1
+        while all_eq_pas[i, j - 1, 0] != -1:
+            j += 1
+        if j > k:
+            k = j
+        
+    new_eq_pas = np.zeros((len(history[:, 0, 0, 0]), k, 3)) - 1
+    new_eq_pas = all_eq_pas[:, 0:k, :]
+        
+    return new_eq_pas
+
 
 @njit
 def gca_nonrel(history, intrinsic):
