@@ -70,7 +70,7 @@ def flc(field, r, eps=1e-6):
     J[:, 1] = (fy1 - fy0) / (2 * eps)
     J[:, 2] = (fz1 - fz0) / (2 * eps)
     
-    return (1.0 / np.linalg.norm(np.dot(J, b))) / Re
+    return (1.0 / np.linalg.norm(np.dot(J, b)))
 
 
 @njit
@@ -114,8 +114,12 @@ def field_line(field, r, tol):
     rrb[0] = r
     
     h = 1e5
-    while np.linalg.norm(r) >= Re:
+    while True:
         r, h = rk45_step(field, r, h, tol, -1)
+
+        if np.linalg.norm(r) <= Re:
+            break
+
         k = np.zeros((1, 3))
         k[0] = r
         rrb = np.append(rrb, k, axis=0)
@@ -125,8 +129,12 @@ def field_line(field, r, tol):
     rrf = np.zeros((1, 3))
     rrf[0] = r
     
-    while np.linalg.norm(r) >= 1 * Re:
+    while True:
         r, h = rk45_step(field, r, h, tol, 1)
+
+        if np.linalg.norm(r) <= Re:
+            break
+
         k = np.zeros((1, 3))
         k[0] = r
         rrf = np.append(rrf, k, axis=0)
@@ -174,7 +182,7 @@ def param_by_eq_pa(field, rr, eq_pa):
 
     if i == 0:
         r = rr[i, :]
-        pa = np.arcsin(b_mag[i] / b_mag[min_ind] * np.sin(eq_pa))
+        pa = np.arcsin(np.sqrt(b_mag[i] / b_mag[min_ind]) * np.sin(eq_pa))
 
         return r, pa
     
