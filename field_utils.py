@@ -1,6 +1,27 @@
 import numpy as np
+import scipy.constants as sp
+from utils import *
 from numba import njit
 from constants import *
+
+@njit
+def J_to_eV(E):
+    return 1.0 / sp.e * E
+
+
+@njit
+def eV_to_J(E):
+    return sp.e * E
+
+
+@njit
+def dot(v, w):
+    return v[0] * w[0] + v[1] * w[1] + v[2] * w[2]
+
+
+@njit
+def gamma(v):
+    return 1.0 / np.sqrt(1 - dot(v, v) / sp.c**2)
 
 @njit
 def grad(field, r, eps=1e-6):
@@ -26,16 +47,6 @@ def jacobian(field, r, eps=1e-6):
     jac[:, 2] = (field(r + z_offset) - field(r - z_offset)) / (2 * eps)
 
     return jac
-
-
-@njit
-def curvature(field, r, eps=1e-6):
-    field_vec = field(r)
-    field_mag = np.linalg.norm(field_vec)
-    grad_field = grad(field, r, eps)
-    grad_perp = grad_field - np.dot(grad_field, field_vec) / field_mag**2 * field_vec
-
-    return np.linalg.norm(grad_perp) / field_mag
 
 
 @njit
@@ -169,11 +180,14 @@ def field_reversal(field, rr):
 
 @njit
 def param_by_eq_pa(field, rr, eq_pa):
+    # Get the magnetic field along the field line and the location of its minimu
     b_vec, b_mag, b_rad_mag = b_along_path(field, rr)
     min_ind = b_rad_mag.argmin()
     
+    # Determine Bmax, the field value closest to the particle's mirror point
     b_max = b_mag[min_ind] / np.sin(eq_pa)**2
     
+    # Walk northward along the field line until we find the closest value to Bmax
     i = min_ind
     while b_mag[i] < b_max:
         if i <= 0:
@@ -181,6 +195,9 @@ def param_by_eq_pa(field, rr, eq_pa):
         i -= 1
 
     if i == 0:
+        if b_mag[i] > b_max:
+            i += 1
+
         r = rr[i, :]
         pa = np.arcsin(np.sqrt(b_mag[i] / b_mag[min_ind]) * np.sin(eq_pa))
 
@@ -193,6 +210,24 @@ def param_by_eq_pa(field, rr, eq_pa):
     pa = np.arcsin(np.sqrt(np.linalg.norm(field(r)) / b_mag[min_ind]) * np.sin(eq_pa))
 
     return r, pa
+
+
+@njit
+def adiabaticity(field, rr, K, m = sp.m_e, q = -sp.e):
+    hist_new = np.zeros((len(rr[:, 0])))
+
+    gamma_v = 1 + eV_to_J(K) / (m * sp.c**2)
+    v = (sp.c / gamma_v) * np.sqrt(gamma_v**2 - 1)
+
+    for i in range(len(rr[:, 0])):
+        b = field(rr[i, :])
+
+        rho_0 = gamma_v * m * v / (abs(q) * np.linalg.norm(b))
+        
+        R_c = flc(field, rr[i, :])
+        hist_new[i] = rho_0 / R_c
+
+    return hist_new
 
 
 def plot_field(field, axis, nodes, x_lims, y_lims, size = (10, 10), t = 0.0):

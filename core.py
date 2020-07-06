@@ -7,8 +7,8 @@ from scipy import constants as sp
 from constants import *
 import numpy as np
 from math import sqrt
-
 from numba import njit
+
 
 def solver(integrator):
     @njit

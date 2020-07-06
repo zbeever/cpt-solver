@@ -1,4 +1,5 @@
 import numpy as np
+from field_utils import *
 from numba import njit
 from diagnostics import *
 import scipy.constants as sp
@@ -6,10 +7,21 @@ from matplotlib.gridspec import GridSpec
 from matplotlib import pyplot as plt
 
 axis_num = {
-        'x': 0,
-        'y': 1,
-        'z': 2
-        }
+            'x': 0,
+            'y': 1,
+            'z': 2
+           }
+
+
+def format_bytes(size):
+    power = 2**10
+    n = 0
+    power_labels = {0 : '', 1: 'kilo', 2: 'mega', 3: 'giga', 4: 'tera'}
+    while size > power:
+        size /= power
+        n += 1
+    return size, power_labels[n] + 'bytes'
+
 
 @njit
 def J_to_eV(E):
@@ -67,12 +79,12 @@ def velocity_vec(r, K, m, b_field, pitch_angle, phase_angle, t = 0.):
         return v_dir / np.linalg.norm(v_dir) * v_mag
 
 
-def plotter(history, intrinsic, dt, threshold=0.2, min_time=5e-3, padding=1e-3):
+def plotter(field, history, intrinsic, dt, threshold=0.2, min_time=5e-3, padding=1e-3):
     plt.rc('text', usetex=True)
     plt.rcParams.update({'font.size': 22})
 
     eq_pa_plots  = eq_pitch_angle_from_moment(history, intrinsic)
-    eq_pa_values = get_eq_pas(history, intrinsic, dt, threshold, min_time, padding)
+    eq_pa_values = get_eq_pas(field, history, intrinsic, threshold)
     pa           = pitch_angle(history)
     K            = kinetic_energy(history, intrinsic)
     v_pa, v_pam  = velocity_par(history)
@@ -135,7 +147,7 @@ def plotter(history, intrinsic, dt, threshold=0.2, min_time=5e-3, padding=1e-3):
         for i, j in enumerate(particle_ind):
             ax2.plot(t_v, pa[j, :], c=plt.cm.plasma(i / n), label=chr(ord('@') + i + 1))
         ax2.set_xlim([0, steps * dt])
-        ax2.set_ylim([0, 90])
+        ax2.set_ylim([0, 180])
         ax2.set_ylabel('Pitch angle (deg)')
         ax2.grid()
         
