@@ -81,6 +81,7 @@ class System:
         for j in range(self.steps - 1):
             hist_indiv[j + 1] = self.integrator(hist_indiv[j], self.ics[i, 4, 0:2], self.ics[i, 4, 2], j)
 
+        self.ics[i, 4, 2] *= self.downsample 
         return hist_indiv[::self.downsample, :, :]
     
     def solve(self, T, dt, sample_every=1e-3):
@@ -100,6 +101,8 @@ class System:
 
         self.history = np.array(results)
         self.solved = True
+
+        self.dt *= self.downsample
         
         return
     
@@ -155,7 +158,7 @@ class System:
 
         num_particles = len(particle_ind)
         steps         = len(self.history[0, :, 0, 0])
-        t_v          = np.arange(0, steps) * self.dt
+        t_v           = np.arange(0, steps) * self.dt
             
         n = len(particle_ind)
         

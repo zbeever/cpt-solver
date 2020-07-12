@@ -37,18 +37,15 @@ def uniform_field(strength, axis):
     return field
 
 
-def harris_cs_model(b0, bn, d):
+def harris_cs_model(b0x, sigma, L_cs):
     """Harris current sheet model.
 
     Args:
-    B0_ (float): Magnitude of the x component of the magnetic field in the asymptotic region.
-    Bn_ (float): Magnitude of the z component of the magnetic field.
-    d_ (float): Scale length of the field reversal region.
     """
 
     @njit
     def field(r, t = 0.):
-        return np.array([self.b0 * np.tanh(r[2] / self.d), 0., self.bn])
+        return np.array([b0x * np.tanh(r[2] / L_cs), 0., sigma * b0x])
 
     return field
 
