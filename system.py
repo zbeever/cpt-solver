@@ -7,16 +7,35 @@ from fields import *
 from integrators import *
 from utils import *
 from core import *
-from field_utils import *
+
+@njit
+def test_solve_traj(i, steps, ics, integrator, drop_lost, downsample):
+    hist_indiv    = np.zeros((steps, 4, 3))
+    hist_indiv[0] = np.copy(ics[i, 0:4, :])
+
+    for j in range(steps - 1):
+        hist_indiv[j + 1] = integrator(hist_indiv[j], ics[i, 4, 0:2], ics[i, 4, 2], j)
+
+        if drop_lost:
+            if dot(hist_indiv[j + 1, 0, :], hist_indiv[j + 1, 0, :]) <= (Re + 100e3)**2:
+                break
+
+    ics[i, 4, 2] *= downsample 
+
+    return hist_indiv[::downsample, :, :]
 
 class System:
-    def __init__(self, e_field, b_field):
+    def __init__(self, e_field, b_field, drop_lost=False):
         self.e_field = e_field
         self.b_field = b_field
+
+        self.drop_lost = drop_lost
         self.integrator = relativistic_boris(e_field, b_field)
         self.downsample = 1
+
         self.populated = False
         self.solved = False
+
         return
     
     def populate(self, trials, r_dist, e_dist, pitch_ang_dist, phase_ang_dist, m_dist=delta(sp.m_e), q_dist=delta(-sp.e)):
@@ -46,17 +65,38 @@ class System:
         self.n   = trials
         self.ics = np.zeros((self.n, 5, 3))
 
-        for i in tqdm.tqdm(range(self.n)):
-            mag_eq = np.array([-re_over_Re_dist() * Re, 0, 0])
-            rr = field_line(self.b_field, mag_eq, 1e1)
+        mag_eq = np.array([-re_over_Re_dist() * Re, 0, 0])
+        rr = field_line(self.b_field, mag_eq, 1e-6)
+        b_vec, b_mag, b_rad_mag = b_along_path(self.b_field, rr)
+        b_min_ind = b_mag.argmin()
+        b_min = b_mag[b_min_ind]
 
+        for i in tqdm.tqdm(range(self.n)):
             K = E_dist()
             m = m_dist()
             q = q_dist()
 
-            phase_angle = phase_ang_dist()
+            eq_pa = eq_pitch_ang_dist()
 
-            r, pitch_angle = param_by_eq_pa(self.b_field, rr, eq_pitch_ang_dist())
+            b_val = b_min / np.sin(eq_pa)**2
+            b_ind = np.abs(b_mag - b_val).argmin()
+
+            b_ratio = np.sqrt(b_mag[b_ind] / b_min)
+            new_sin = b_ratio * np.sin(eq_pa)
+
+            if new_sin > 1:
+                if b_ind > b_min_ind:
+                    b_ind -= 1
+                else:
+                    b_ind += 1
+                    
+            b_ratio = np.sqrt(b_mag[b_ind] / b_min)
+            new_sin = b_ratio * np.sin(eq_pa)
+
+            r = rr[b_ind]
+
+            pitch_angle = np.arcsin(new_sin)
+            phase_angle = phase_ang_dist()
             v = velocity_vec(r, K, m, self.b_field, pitch_angle, phase_angle)
 
             self.ics[i, 0]    = r
@@ -66,7 +106,6 @@ class System:
             self.ics[i, 4, 0] = m
             self.ics[i, 4, 1] = q
             
-            
         self.populated = True
         
         return
@@ -74,15 +113,8 @@ class System:
     def solve_traj(self, i):
         if not self.populated:
             raise NameError('System not yet populated. Cannot solve without initial conditions.')
-            
-        hist_indiv    = np.zeros((self.steps, 4, 3))
-        hist_indiv[0] = np.copy(self.ics[i, 0:4, :])
 
-        for j in range(self.steps - 1):
-            hist_indiv[j + 1] = self.integrator(hist_indiv[j], self.ics[i, 4, 0:2], self.ics[i, 4, 2], j)
-
-        self.ics[i, 4, 2] *= self.downsample 
-        return hist_indiv[::self.downsample, :, :]
+        return test_solve_traj(i, self.steps, self.ics, self.integrator, self.drop_lost, self.downsample)
     
     def solve(self, T, dt, sample_every=1e-3):
         if not self.populated:
@@ -102,8 +134,6 @@ class System:
         self.history = np.array(results)
         self.solved = True
 
-        self.dt *= self.downsample
-        
         return
     
     def save(self, file_name):

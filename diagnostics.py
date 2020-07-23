@@ -1,5 +1,4 @@
 import numpy as np
-from constants import *
 from numba import njit
 from scipy import constants as sp
 from scipy import signal
@@ -7,43 +6,26 @@ from utils import *
 
 
 @njit
-def gamma(v):
-    return 1.0 / np.sqrt(1 - dot(v, v) / sp.c**2)
+def lost_ind(history):
+    num_particles = len(history[:, 0, 0, 0])
+    steps         = len(history[0, :, 0, 0])
 
+    zero_array = np.zeros((4, 3))
+    index_list = np.zeros(num_particles) + steps
 
-@njit
-def dot(v, w):
-    return v[0] * w[0] + v[1] * w[1] + v[2] * w[2]
+    for i in range(num_particles):
+        for j in range(step):
+            if history[i, -(j + 1), :, :] == zero_array:
+                index_list[i] -= 1
+            else:
+                break
 
+    return index_list
 
-@njit
-def J_to_eV(E):
-    return 1.0 / sp.e * E
-
-
-@njit
-def eV_to_J(E):
-    return sp.e * E
-
-
+    
 @njit
 def position(history):
     return history[:, :, 0]
-
-
-@njit
-def position_mag(history):
-    num_particles = len(history[:, 0, 0, 0])
-    steps = len(history[0, :, 0, 0])
-
-    r = position(history)
-    history_new = np.zeros((num_particles, steps))
-
-    for i in range(num_particles):
-        for j in range(steps):
-            history_new[i, j] = np.sqrt(dot(r[i, j], r[i, j]))
-    
-    return history_new
 
 
 @njit
@@ -52,26 +34,43 @@ def velocity(history):
 
 
 @njit
-def b_mag(history):
+def position_mag(history):
     num_particles = len(history[:, 0, 0, 0])
-    steps = len(history[0, :, 0, 0])
+    steps         = len(history[0, :, 0, 0])
 
-    b_field = history[:, :, 2]
-    history_new = np.zeros((num_particles, steps))
+    r = history[:, :, 0, :]
+
+    position_mags = np.zeros((num_particles, steps))
 
     for i in range(num_particles):
         for j in range(steps):
-            history_new[i, j] = np.sqrt(dot(b_field[i, j], b_field[i, j]))
+            position_mags[i, j] = np.sqrt(dot(r[i, j], r[i, j]))
     
-    return history_new
+    return position_mags
+
+
+@njit
+def b_mag(history):
+    num_particles = len(history[:, 0, 0, 0])
+    steps         = len(history[0, :, 0, 0])
+
+    b_field = history[:, :, 2, :]
+
+    b_mags = np.zeros((num_particles, steps))
+
+    for i in range(num_particles):
+        for j in range(steps):
+            b_mags[i, j] = np.sqrt(dot(b_field[i, j], b_field[i, j]))
+    
+    return b_mags
 
 
 @njit
 def velocity_par(history):
     num_particles = len(history[:, 0, 0, 0])
-    steps = len(history[0, :, 0, 0])
+    steps         = len(history[0, :, 0, 0])
 
-    v = history[:, :, 1]
+    v       = history[:, :, 1]
     b_field = history[:, :, 2]
 
     v_vec = np.zeros((num_particles, steps, 3))
@@ -79,8 +78,12 @@ def velocity_par(history):
 
     for i in range(num_particles):
         for j in range(steps):
-            v_dot_b = dot(v[i, j], b_field[i, j])
+            v_dot_b   = dot(v[i, j], b_field[i, j])
             b_squared = dot(b_field[i, j], b_field[i, j])
+            if b_squared == 0:
+                v_vec[i, j] = np.zeros(3)
+                v_mag[i, j] = 0.0
+                continue
             v_vec[i, j] = v_dot_b / b_squared * b_field[i, j]
             v_mag[i, j] = np.sqrt(dot(v_vec[i, j], v_vec[i, j]))
 
@@ -90,9 +93,9 @@ def velocity_par(history):
 @njit
 def velocity_perp(history):
     num_particles = len(history[:, 0, 0, 0])
-    steps = len(history[0, :, 0, 0])
+    steps         = len(history[0, :, 0, 0])
 
-    velocity = history[:, :, 1]
+    velocity         = history[:, :, 1]
     v_par, v_par_mag = velocity_par(history)
 
     v_vec = velocity - v_par
@@ -134,6 +137,9 @@ def magnetic_moment(history, intrinsic):
         for j in range(steps):
             v_perp_squared = dot(v_perp[i, j], v_perp[i, j])
             b_magnitude = np.sqrt(dot(b_field[i, j], b_field[i, j]))
+            if b_magnitude == 0:
+                history_new[i, j] = 0.0
+                continue
             history_new[i, j] = 0.5 * intrinsic[i, 0] * v_perp_squared / b_magnitude
 
     return history_new
@@ -194,7 +200,6 @@ def gyrofreq(history, intrinsic):
             history_new[i, j] = abs(intrinsic[i, 1]) * b_magnitude / (gamma_v * intrinsic[i, 0])
 
     return history_new
-
 
 @njit
 def eq_pitch_angle_from_moment(history, intrinsic):

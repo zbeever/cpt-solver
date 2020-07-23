@@ -2,20 +2,30 @@ import numpy as np
 import scipy.constants as sp
 
 from fields import *
-from constants import *
 
 from numba import njit
 
-# The relativistic Boris integrator, detailed in DOI: 10.3847/1538-4365/aab114 
-# This integrator has the advantage of preserving volume and, in the absence of electric fields, energy
-
 def relativistic_boris(e_field, b_field):
+    '''Relativistic Boris integrator described in DOI: 10.3847/1538-4365/aab114. Advances a particle over one timestep.
+    This integrator has the advantage of preserving volume and, in the absence of electric fields, energy
+
+    Parameters
+    ==========
+    e_field(r, t): The electric field function (this is obtained through the currying functions in fields.py).
+    b_field(r, t): The magnetic field function (this is obtained through the currying functions in fields.py).
+
+    Returns
+    =======
+    step(state, intrinsic, dt, step_num): Function with particle state (4x1 numpy array), intrinsic properties (3x1 numpy array), time step (float) and step number (int).
+    '''
+
     @njit
-    def step(history, intrinsic, dt, step_num):
+    def step(state, intrinsic, dt, step_num):
+        # Used to calculate the current time in the case of time-varying fields.
         time = step_num * dt
 
-        r = history[0]
-        v = history[1]
+        r = state[0]
+        v = state[1]
         m = intrinsic[0]
         q = intrinsic[1]
 
@@ -46,23 +56,35 @@ def relativistic_boris(e_field, b_field):
         gamma_n1 = (1 + np.dot(u_n1, u_n1) / sp.c ** 2) ** 0.5
         x_n1 = x_n12 + u_n1 * 0.5 * dt / gamma_n1
 
-        history_new = np.zeros((4, 3))
-        history_new[0] = x_n1
-        history_new[1] = u_n1 / gamma_n1
-        history_new[2] = b_field(x_n1, time + dt)
-        history_new[3] = e_field(x_n1, time + dt)
+        state_new = np.zeros((4, 3))
+        state_new[0] = x_n1
+        state_new[1] = u_n1 / gamma_n1
+        state_new[2] = b_field(x_n1, time + dt)
+        state_new[3] = e_field(x_n1, time + dt)
 
-        return history_new
+        return state_new
     return step
 
-# The nonrelativistic Boris integrator, detailed in the Particle-in-cell Wikipedia page
+
 def nonrelativistic_boris(e_field, b_field):
+    '''Nonrelativistic Boris integrator described on the Particle-in-cell Wikipedia page. Advances a particle over one timestep.
+
+    Parameters
+    ==========
+    e_field(r, t): The electric field function (this is obtained through the currying functions in fields.py).
+    b_field(r, t): The magnetic field function (this is obtained through the currying functions in fields.py).
+
+    Returns
+    =======
+    step(state, intrinsic, dt, step_num): Function with particle state (4x1 numpy array), intrinsic properties (3x1 numpy array), time step (float) and step number (int).
+    '''
+
     @njit
-    def step(history, intrinsic, dt, step_num):
+    def step(state, intrinsic, dt, step_num):
         time = step_num * dt
 
-        r = history[0]
-        v = history[1]
+        r = state[0]
+        v = state[1]
         m = intrinsic[0]
         q = intrinsic[1]
 
@@ -75,11 +97,11 @@ def nonrelativistic_boris(e_field, b_field):
         u = v + q_prime * E
         u_prime = u + np.cross(u + np.cross(u, h), s)
 
-        history_new = np.zeros((4, 3))
-        history_new[1] = u_prime + q_prime * E
-        history_new[0] = r + history_new[1] * dt
-        history_new[2] = b_field(history_new[0], time + dt)
-        history_new[3] = e_field(history_new[0], time + dt)
+        state_new = np.zeros((4, 3))
+        state_new[1] = u_prime + q_prime * E
+        state_new[0] = r + history_new[1] * dt
+        state_new[2] = b_field(history_new[0], time + dt)
+        state_new[3] = e_field(history_new[0], time + dt)
 
-        return history_new
+        return state_new
     return step

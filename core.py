@@ -1,10 +1,8 @@
 from distributions import *
 from utils import *
 from fields import *
-from field_utils import *
 from integrators import *
 from scipy import constants as sp
-from constants import *
 import numpy as np
 from math import sqrt
 from numba import njit

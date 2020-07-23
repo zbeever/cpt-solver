@@ -1,5 +1,4 @@
 import numpy as np
-from field_utils import *
 from numba import njit
 from diagnostics import *
 import scipy.constants as sp
@@ -138,7 +137,7 @@ def local_onb(r, b_field, t=0.):
         local_z = local_z / np.linalg.norm(local_z)
 
     local_x = -r
-    local_x = local_x - np.dot(local_x, local_z) * local_z
+    local_x = local_x - dot(local_x, local_z) * local_z
     if np.dot(local_x, local_x) == 0:
         local_x = np.array([-1., 0., 0.])
     else:

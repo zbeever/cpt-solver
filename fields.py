@@ -6,11 +6,9 @@ from geopack_numba import t89 as ext_t89
 from numba import njit, jit
 from matplotlib import pyplot as plt
 
-from constants import *
 
 def zero_field():
-    '''
-    Zero field. Returns the zero vector.
+    '''Zero field. Returns the zero vector.
 
     Parameters
     ==========
@@ -29,8 +27,7 @@ def zero_field():
 
 
 def uniform_field(strength, axis):
-    '''
-    Uniform field. Returns the same value at every point in space.
+    '''Uniform field. Returns the same value at every point in space.
 
     Parameters
     ==========
@@ -53,8 +50,7 @@ def uniform_field(strength, axis):
 
 
 def harris_cs_model(b0x, sigma, L_cs):
-    '''
-    Harris current sheet model, with the current sheet in the x-y plane.
+    '''Harris current sheet model, with the current sheet in the x-y plane.
 
     Parameters
     ==========
@@ -75,8 +71,7 @@ def harris_cs_model(b0x, sigma, L_cs):
 
 
 def magnetic_dipole(current, signed_area):
-    '''
-    Magnetic dipole field formed from a current loop.
+    '''Magnetic dipole field formed from a current loop.
 
     Parameters
     ==========
@@ -103,8 +98,7 @@ def magnetic_dipole(current, signed_area):
 
 
 def electric_dipole(charge, displacement):
-    '''
-    Electric dipole field formed from two opposite charges.
+    '''Electric dipole field formed from two opposite charges.
 
     Parameters
     ==========
@@ -131,8 +125,7 @@ def electric_dipole(charge, displacement):
 
 
 def earth_dipole_axis_aligned():
-    '''
-    Dipole model of Earth's magnetic field with the dipole moment oriented along the z axis.
+    '''Dipole model of Earth's magnetic field with the dipole moment oriented along the z axis.
 
     Parameters
     ==========
@@ -161,8 +154,7 @@ def earth_dipole_axis_aligned():
 
 
 def earth_dipole(t0=4.01172e7):
-    '''
-    Geopack dipole model of Earth's magnetic field.
+    '''Geopack dipole model of Earth's magnetic field.
 
     Parameters
     ==========
@@ -189,8 +181,7 @@ def earth_dipole(t0=4.01172e7):
 
 
 def igrf(t0=4.01172e7):
-    '''
-    The IGRF model of Earth's magnetic field.
+    '''The IGRF model of Earth's magnetic field.
 
     Parameters
     ==========
@@ -217,8 +208,7 @@ def igrf(t0=4.01172e7):
 
 
 def t89(Kp, t0=4.0118e7, sw_v=np.array([-400., 0., 0.])):
-    '''
-    Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1989 model (DOI: 10.1016/0032-0633(89)90066-4) and the IGRF model.
+    '''Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1989 model (DOI: 10.1016/0032-0633(89)90066-4) and the IGRF model.
 
     Parameters
     ==========
@@ -248,8 +238,7 @@ def t89(Kp, t0=4.0118e7, sw_v=np.array([-400., 0., 0.])):
 
 
 def t96(par, t0=4.0118e7):
-    '''
-    A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1996 model (DOI: 10.1029/96JA02735) and the IGRF model.
+    '''A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1996 model (DOI: 10.1029/96JA02735) and the IGRF model.
 
     Parameters
     ==========
@@ -282,8 +271,7 @@ def t96(par, t0=4.0118e7):
 
 
 def t01(par, t0=4.0118e7):
-    '''
-    A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2001 model (DOI: 10.1029/2001JA000220) and the IGRF model.
+    '''A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2001 model (DOI: 10.1029/2001JA000220) and the IGRF model.
 
     Parameters
     ==========
@@ -318,8 +306,7 @@ def t01(par, t0=4.0118e7):
 
 
 def t04(par, t0=4.01e7):
-    '''
-    A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2004 model (DOI: 10.1029/2004JA010798) and the IGRF model.
+    '''A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2004 model (DOI: 10.1029/2004JA010798) and the IGRF model.
 
     Parameters
     ==========
