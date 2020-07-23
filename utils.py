@@ -20,11 +20,11 @@ def format_bytes(size):
     Utility function to format an integer number of bytes to a human-readable format.
 
     Parameters
-    ==========
+    ----------
     size (int): Number of bytes.
 
     Returns
-    =======
+    -------
     size (float): Rescaled size of the data.
     power_label (string): The associated unit.
     '''
@@ -46,11 +46,11 @@ def J_to_eV(E):
     Converts joules to electronvolts.
 
     Parameters
-    ==========
+    ----------
     E (float): An energy (in joules).
 
     Returns
-    =======
+    -------
     E (float): An energy (in electronvolts).
     '''
 
@@ -63,11 +63,11 @@ def eV_to_J(E):
     Converts electronvolts to joules.
 
     Parameters
-    ==========
+    ----------
     E (float): An energy (in electronvolts).
 
     Returns
-    =======
+    -------
     E (float): An energy (in joules).
     '''
 
@@ -81,12 +81,12 @@ def dot(v, w):
     when using np.dot in a Numba function on vectors whose components are not contiguous in memory.
 
     Parameters
-    ==========
+    ----------
     v (3x1 numpy array): First vector.
     w (3x1 numpy array): Second vector.
 
     Returns
-    =======
+    -------
     v_dot_w (float): The dot product of v and w. 
     '''
 
@@ -99,11 +99,11 @@ def gamma(v):
     Calculates the standard relativistic factor from a SI velocity vector.
 
     Parameters
-    ==========
+    ----------
     v (3x1 numpy array): The velocity vector (in m/s).
 
     Returns
-    =======
+    -------
     gamma (float): The relativistic factor.
     '''
 
@@ -116,13 +116,13 @@ def local_onb(r, b_field, t=0.):
     Constructs an orthonormal basis at a given location with the z axis along the magnetic field and the x axis directed toward the origin.
 
     Parameters
-    ==========
+    ----------
     r (3x1 numpy array): The origin of the new coordinate system.
     b_field(r, t): The field function (this is obtained through the currying functions in fields.py).
     t0 (float): The universal time (in seconds). Defaults to 0.
 
     Returns
-    =======
+    -------
     local_x (3x1 numpy array): Local x axis unit vector.
     local_y (3x1 numpy array): Local y axis unit vector.
     local_z (3x1 numpy array): Local z axis unit vector.
@@ -153,7 +153,7 @@ def velocity_vec(r, K, m, b_field, pitch_angle, phase_angle, t=0.):
     Generates a velocity vector from a particle's energy, pitch angle, and phase angle.
 
     Parameters
-    ==========
+    ----------
     r (3x1 numpy array): The location (in m) of the particle.
     K (float): The kinetic energy (in eV) of the particle.
     m (float): The mass (in kg) of the particle.
@@ -163,7 +163,7 @@ def velocity_vec(r, K, m, b_field, pitch_angle, phase_angle, t=0.):
     t0 (float): The universal time (in seconds). Defaults to 0.
 
     Returns
-    =======
+    -------
     v (3x1 numpy array): The velocity (in m/s) of the particle.
     '''
 
@@ -186,13 +186,13 @@ def grad(field, r, eps=1e-6):
     Numerically finds the gradient of a field at a given point.
 
     Parameters
-    ==========
+    ----------
     field(r, t): The field function (this is obtained through the currying functions in fields.py).
     r (3x1 numpy array): The location at which to find the gradient.
     eps (float): The size of epsilon for use in the definition of the partial derivative. Defaults to 1e-6.
 
     Returns
-    =======
+    -------
     grad (3x1 numpy array): The gradient of the field at the given point.
     '''
 
@@ -214,13 +214,13 @@ def jacobian(field, r, eps=1e-6):
     Numerically finds the Jacobian of a field at a given point.
 
     Parameters
-    ==========
+    ----------
     field(r, t): The field function (this is obtained through the currying functions in fields.py).
     r (3x1 numpy array): The location at which to find the Jacobian.
     eps (float): The size of epsilon for use in the definition of the partial derivative. Defaults to 1e-6.
 
     Returns
-    =======
+    -------
     jac (3x3 numpy array): The gradient of the field at the given point.
     '''
 
@@ -242,13 +242,13 @@ def flc(field, r, eps=1e-6):
     Numerically finds the radius of curvature of the field line at a given point.
 
     Parameters
-    ==========
+    ----------
     field(r, t): The field function (this is obtained through the currying functions in fields.py).
     r (3x1 numpy array): The location at which to find the field line curvature.
     eps (float): The size of epsilon for use in the definition of the partial derivative. Defaults to 1e-6.
 
     Returns
-    =======
+    -------
     Rc (float): The radius of curvature (in m).
     '''
 
@@ -291,13 +291,13 @@ def field_line(field, r, tol):
     Traces the field line of a given magnetosphere model using the Runge-Kutta-Fehlberg method. Use this for the Tsyganenko and IGRF models.
 
     Parameters
-    ==========
+    ----------
     field(r, t): The field function (this is obtained through the currying functions in fields.py).
     r (3x1 numpy array): A point which the field line runs through.
     eps (float): The maximum error allowed by the solver.
 
     Returns
-    =======
+    -------
     rr (Nx3 numpy array): An array of points marking the field line. Begins and stops where the field line is 0.5 R_E away from the origin.
     '''
 
@@ -376,12 +376,12 @@ def b_along_path(field, rr):
     Gives the magnetic field along a path.
 
     Parameters
-    ==========
+    ----------
     field(r, t): The field function (this is obtained through the currying functions in fields.py).
     rr (Nx3 numpy array): An array of points marking the path.
 
     Returns
-    =======
+    -------
     field_vec (Nx3 numpy array): The field vector at each point along the path.
     field_mag (Nx1 numpy array): The strength of the field along the path.
     field_rad_mag (Nx1 numpy array): The strength of the radial (x and y) field along the path.
@@ -409,12 +409,12 @@ def field_reversal(field, rr):
     For a field with no dipole tilt, this coincides with the location of maximum curvature along a field line.
 
     Parameters
-    ==========
+    ----------
     field(r, t): The field function (this is obtained through the currying functions in fields.py).
     rr (Nx3 numpy array): An array of points marking the path.
 
     Returns
-    =======
+    -------
     r (3x1 numpy array): The point of minimum radial field strength.
     '''
 
@@ -429,7 +429,7 @@ def adiabaticity(field, rr, K, m=sp.m_e, q=-sp.e):
     where R_c is the radius of curvature of the field line at that point and rho is the particle's gyroradius.
 
     Parameters
-    ==========
+    ----------
     field(r, t): The field function (this is obtained through the currying functions in fields.py).
     rr (Nx3 numpy array): An array of points marking the path.
     K (float): The kinetic energy of the particle (in eV).
@@ -437,7 +437,7 @@ def adiabaticity(field, rr, K, m=sp.m_e, q=-sp.e):
     q (float): The electric charge of the particle (in C). Defaults to the electron charge (the negative unit charge).
 
     Returns
-    =======
+    -------
     kappa (Nx1 numpy array): The adiabaticity of each point along the path.
     '''
 
@@ -462,7 +462,7 @@ def plot_field(field, axis, nodes, x_lims, y_lims, size=(10, 10), t=0.):
     Creates a plot of the integral curves of a field along one of the three axis-aligned planes passing through the origin.
 
     Parameters
-    ==========
+    ----------
     field(r, t): The field function (this is obtained through the currying functions in fields.py).
     axis (string): Either 'x', 'y', or 'z.' This is the axis the plane of the graph will be orthogonal to.
     nodes (int): The number of samples to be taken along each axis.
@@ -472,7 +472,7 @@ def plot_field(field, axis, nodes, x_lims, y_lims, size=(10, 10), t=0.):
     t (float): The time at which to evaluate the field. Defaults to 0.
 
     Returns
-    =======
+    -------
     None
     '''
 

@@ -10,12 +10,12 @@ def relativistic_boris(e_field, b_field):
     This integrator has the advantage of preserving volume and, in the absence of electric fields, energy
 
     Parameters
-    ==========
+    ----------
     e_field(r, t): The electric field function (this is obtained through the currying functions in fields.py).
     b_field(r, t): The magnetic field function (this is obtained through the currying functions in fields.py).
 
     Returns
-    =======
+    -------
     step(state, intrinsic, dt, step_num): Function with particle state (4x1 numpy array), intrinsic properties (3x1 numpy array), time step (float) and step number (int).
     '''
 
@@ -70,12 +70,12 @@ def nonrelativistic_boris(e_field, b_field):
     '''Nonrelativistic Boris integrator described on the Particle-in-cell Wikipedia page. Advances a particle over one timestep.
 
     Parameters
-    ==========
+    ----------
     e_field(r, t): The electric field function (this is obtained through the currying functions in fields.py).
     b_field(r, t): The magnetic field function (this is obtained through the currying functions in fields.py).
 
     Returns
-    =======
+    -------
     step(state, intrinsic, dt, step_num): Function with particle state (4x1 numpy array), intrinsic properties (3x1 numpy array), time step (float) and step number (int).
     '''
 

@@ -8,14 +8,15 @@ from matplotlib import pyplot as plt
 
 
 def zero_field():
-    '''Zero field. Returns the zero vector.
+    '''
+    Zero field. Returns the zero vector.
 
     Parameters
-    ==========
+    ----------
     None
 
     Returns
-    =======
+    -------
     field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
     '''
 
@@ -27,15 +28,16 @@ def zero_field():
 
 
 def uniform_field(strength, axis):
-    '''Uniform field. Returns the same value at every point in space.
+    '''
+    Uniform field. Returns the same value at every point in space.
 
     Parameters
-    ==========
+    ----------
     strength (float): The strength of the field (in T or V/m).
     axis (3x1 numpy array): Direction along which the field lines point.
 
     Returns
-    =======
+    -------
     field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
     '''
 
@@ -50,16 +52,17 @@ def uniform_field(strength, axis):
 
 
 def harris_cs_model(b0x, sigma, L_cs):
-    '''Harris current sheet model, with the current sheet in the x-y plane.
+    '''
+    Harris current sheet model, with the current sheet in the x-y plane.
 
     Parameters
-    ==========
+    ----------
     b0x (float): The minimum value of the field.
     sigma (float): A parameter marking the perturbation strength of the current sheet. b0x * sigma is the radius of curvature of the field in the x-y plane.
     L_cs (float): The current sheet thickness.
 
     Returns
-    =======
+    -------
     field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
     '''
 
@@ -71,15 +74,16 @@ def harris_cs_model(b0x, sigma, L_cs):
 
 
 def magnetic_dipole(current, signed_area):
-    '''Magnetic dipole field formed from a current loop.
+    '''
+    Magnetic dipole field formed from a current loop.
 
     Parameters
-    ==========
+    ----------
     current (float): The value of the current in amperes.
     signed_area (3x1 numpy array): Normal vector to the plane of the loop whose length is numerically equal to the loop's enclosed area (in m^2).
 
     Returns
-    =======
+    -------
     field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
     '''
 
@@ -98,15 +102,16 @@ def magnetic_dipole(current, signed_area):
 
 
 def electric_dipole(charge, displacement):
-    '''Electric dipole field formed from two opposite charges.
+    '''
+    Electric dipole field formed from two opposite charges.
 
     Parameters
-    ==========
+    ----------
     charge (float): The magnitude of one of the charges in C.
     displacement (3x1 numpy array): The vector pointing from the negative charge to the positive one in m.
 
     Returns
-    =======
+    -------
     field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
     '''
 
@@ -125,14 +130,15 @@ def electric_dipole(charge, displacement):
 
 
 def earth_dipole_axis_aligned():
-    '''Dipole model of Earth's magnetic field with the dipole moment oriented along the z axis.
+    '''
+    Dipole model of Earth's magnetic field with the dipole moment oriented along the z axis.
 
     Parameters
-    ==========
+    ----------
     None
 
     Returns
-    =======
+    -------
     field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
     '''
 
@@ -154,14 +160,15 @@ def earth_dipole_axis_aligned():
 
 
 def earth_dipole(t0=4.01172e7):
-    '''Geopack dipole model of Earth's magnetic field.
+    '''
+    Geopack dipole model of Earth's magnetic field.
 
     Parameters
-    ==========
+    ----------
     t0 (float): The universal time (in seconds). Defaults to a value where the dipole tilt is approximately 0.
 
     Returns
-    =======
+    -------
     field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
     '''
 
@@ -181,14 +188,15 @@ def earth_dipole(t0=4.01172e7):
 
 
 def igrf(t0=4.01172e7):
-    '''The IGRF model of Earth's magnetic field.
+    '''
+    The IGRF model of Earth's magnetic field.
 
     Parameters
-    ==========
+    ----------
     t0 (float): The universal time (in seconds). Defaults to a value where the dipole tilt is approximately 0.
 
     Returns
-    =======
+    -------
     field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
     '''
 
@@ -208,16 +216,17 @@ def igrf(t0=4.01172e7):
 
 
 def t89(Kp, t0=4.0118e7, sw_v=np.array([-400., 0., 0.])):
-    '''Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1989 model (DOI: 10.1016/0032-0633(89)90066-4) and the IGRF model.
+    '''
+    Model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1989 model (DOI: 10.1016/0032-0633(89)90066-4) and the IGRF model.
 
     Parameters
-    ==========
+    ----------
     Kp (int): A mapping to the Kp geomagnetic activity index. Acceptable values range from 1 to 7, mapping to values between 0 and 6+, inclusive.
     t0 (float): The universal time (in seconds). Defaults to a value where the dipole tilt is approximately 0.
     sw_v (3x1 numpy array): The solar wind velocity vector in GSE coordinates. Defaults to v = [-400, 0, 0]
 
     Returns
-    =======
+    -------
     field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
     '''
 
@@ -238,10 +247,11 @@ def t89(Kp, t0=4.0118e7, sw_v=np.array([-400., 0., 0.])):
 
 
 def t96(par, t0=4.0118e7):
-    '''A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1996 model (DOI: 10.1029/96JA02735) and the IGRF model.
+    '''
+    A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1996 model (DOI: 10.1029/96JA02735) and the IGRF model.
 
     Parameters
-    ==========
+    ----------
     par (10 list): A 10-element list containing the model parameters.
     par[0]={Pdyn} (float): The solar wind dynamic pressure in nPa. Typically in the range of 1 to 6 nPa.
     par[1]={Dst} (float): The disturbance storm-time index, a measure of magnetic activity connected to the ring current. Values are measured in nT. A value less than -50 nT indicates high geomagnetic activity. 
@@ -251,7 +261,7 @@ def t96(par, t0=4.0118e7):
     t0 (float): The universal time (in seconds). Defaults to a value where the dipole tilt is approximately 0.
 
     Returns
-    =======
+    -------
     field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
     '''
 
@@ -271,10 +281,11 @@ def t96(par, t0=4.0118e7):
 
 
 def t01(par, t0=4.0118e7):
-    '''A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2001 model (DOI: 10.1029/2001JA000220) and the IGRF model.
+    '''
+    A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2001 model (DOI: 10.1029/2001JA000220) and the IGRF model.
 
     Parameters
-    ==========
+    ----------
     par (10 list): A 10-element list containing the model parameters.
     par[0]={Pdyn} (float): The solar wind dynamic pressure in nPa. Typically in the range of 1 to 6 nPa.
     par[1]={Dst} (float): The disturbance storm-time index, a measure of magnetic activity connected to the ring current. Values are measured in nT. A value less than -50 nT indicates high geomagnetic activity. 
@@ -286,7 +297,7 @@ def t01(par, t0=4.0118e7):
     t0 (float): The universal time (in seconds). Defaults to a value where the dipole tilt is approximately 0.
 
     Returns
-    =======
+    -------
     field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
     '''
 
@@ -306,10 +317,11 @@ def t01(par, t0=4.0118e7):
 
 
 def t04(par, t0=4.01e7):
-    '''A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2004 model (DOI: 10.1029/2004JA010798) and the IGRF model.
+    '''
+    A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2004 model (DOI: 10.1029/2004JA010798) and the IGRF model.
 
     Parameters
-    ==========
+    ----------
     par (10 list): A 10-element list containing the model parameters.
     par[0]={Pdyn} (float): The solar wind dynamic pressure in nPa. Typically in the range of 1 to 6 nPa.
     par[1]={Dst} (float): The disturbance storm-time index, a measure of magnetic activity connected to the ring current. Values are measured in nT. A value less than -50 nT indicates high geomagnetic activity. 
@@ -324,7 +336,7 @@ def t04(par, t0=4.01e7):
     t0 (float): The universal time (in seconds). Defaults to a value where the dipole tilt is approximately 0.
 
     Returns
-    =======
+    -------
     field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
     '''
 
