@@ -282,8 +282,8 @@ def gyrofreq(ke, b_magnitude, mass, charge):
 def eq_pitch_angle(b_field, pitch_ang, b_magnitude, gyrorad, position, unwrapped=False):
     '''
     Calculates the equatorial pitch angle (in radians) along a history. Does so by taking advantage of the fact that the first adiabatic invariant
-    is most accurate at the mirror points along a particle's trajecotry. A single equatorial pitch angle is assigned to the interval between adjacent
-    equatorial crossing points.
+    is most accurate at the mirror points along a particle's trajecotry (see Mozer (1966) DOI: 10.1029/JZ071i011p02701 and Anderson (1997) DOI:
+    10.1029/97JA00798). A single equatorial pitch angle is assigned to the interval between adjacent equatorial crossing points.
 
     Parameters
     ----------
