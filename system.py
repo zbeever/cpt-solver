@@ -15,6 +15,9 @@ def solve_traj_numba(i, steps, dt, initial_conditions, particle_properties, inte
     hist_indiv    = np.zeros((steps, 4, 3))
     hist_indiv[0, :, :] = np.copy(initial_conditions[i, :, :])
 
+    if (hist_indiv[0, :, :] == np.zeros((4, 3))).all():
+        return np.zeros((int(steps // downsample), 4, 3))
+
     for j in range(steps - 1):
         hist_indiv[j + 1] = integrator(hist_indiv[j], particle_properties[i, :], dt, j)
 
@@ -23,6 +26,7 @@ def solve_traj_numba(i, steps, dt, initial_conditions, particle_properties, inte
                 break
 
     return hist_indiv[::downsample, :, :]
+
 
 class System:
     def __init__(self, e_field, b_field, integrator=relativistic_boris, drop_lost=False):
@@ -38,6 +42,7 @@ class System:
         self.loaded = False
 
         return
+
     
     def populate(self, trials, r_dist, E_dist, pitch_ang_dist, phase_ang_dist, m_dist=delta(sp.m_e), q_dist=delta(-sp.e)):
         '''
@@ -87,6 +92,7 @@ class System:
         self.populated = True
 
         return
+
     
     def populate_by_eq_pa(self, trials, L_dist, E_dist, eq_pitch_ang_dist, phase_ang_dist, m_dist = delta(sp.m_e), q_dist = delta(-sp.e), t = 0.):
         '''
@@ -239,102 +245,6 @@ class System:
 
         return
 
-    
-    def write(self, filename):
-        '''
-        Writes the current system (the solved history) to an HDF5 file. If given the path of another file, the old file will be overwritten.
-
-        Parameters
-        ----------
-        filename (string): The path to the file. Do not include the extension.
-
-        Returns
-        -------
-        None
-        '''
-
-        if not self.solved or not self.populated:
-            raise NameError('System not yet populated / solved. Cannot save empty IC / history array.')
-
-        # Check to make sure the user actually wants to overwrite the specified file.
-        if os.path.exists(f'{filename}.hdf5'):
-            if input(f'{filename} already exists. Overwrite? (Y/N) ') != 'Y':
-                print('Write canceled.')
-                return
-            else:
-                os.remove(f'{filename}.hdf5')
-            
-        self.file = filename
-        f = h5py.File(f'{self.file}.hdf5', 'a')
-        f.create_group('data')
-
-        data = f['data']
-        hist = data.create_dataset('history', np.shape(self.history), maxshape=(None, None, None, None), dtype='float')
-        pps  = data.create_dataset('particle_properties', np.shape(self.particle_properties), maxshape=(None, None), dtype='float')
-
-        hist[:] = self.history
-        pps[:]  = self.particle_properties
-
-        data.attrs['dt'] = self.dt
-        data.attrs['sample_dt'] = self.dt * self.downsample
-        data.attrs['num_particles'] = self.n
-        data.attrs['steps'] = self.steps
-            
-        f.close()
-
-        file_size = os.path.getsize(f'{self.file}.hdf5')
-        formatted_file_size = format_bytes(file_size)
-
-        print(f'Saved file {self.file}.hdf5 containing {formatted_file_size[0]:.2f} {formatted_file_size[1]} of information.')
-
-        return
-    
-
-    def load(self, filename):
-        '''
-        Loads a file into the system. In reality, this only updates the system parameters and logs the given filename for use in other functions.
-
-        Parameters
-        ----------
-        filename (string): The path to the file. Do not include the extension.
-
-        Returns
-        -------
-        None
-        '''
-
-        if not os.path.exists(f'{filename}.hdf5'):
-            raise NameError('No such file.')
-
-        self.file = filename
-
-        file_size = os.path.getsize(f'{self.file}.hdf5')
-        formatted_file_size = format_bytes(file_size)
-
-        print(f'Loaded file {self.file}.hdf5 containing {formatted_file_size[0]:.2f} {formatted_file_size[1]} of information.')
-
-        f = h5py.File(f'{self.file}.hdf5', 'a')
-
-        data = f['data']
-        hist = data['history']
-        pps  = data['particle_properties']
-
-        if hasattr(self, 'initial_conditions'):
-            del self.initial_conditions
-        self.initial_conditions = hist[:, -1, :, :]
-
-        if hasattr(self, 'particle_properties'):
-            del self.particle_properties
-        self.particle_properties = pps[:, :]
-
-        self.solved = True
-        self.populated = True
-        self.n = int(data.attrs['num_particles'])
-
-        f.close()
-
-        return
-
 
     def add_time(self, T):
         '''
@@ -352,26 +262,50 @@ class System:
 
         f = h5py.File(f'{self.file}.hdf5', 'a')
 
-        data = f['data']
-        hist = data['history']
-        pps  = data['particle_properties']
+        hist = f['history']
+
+        rr = hist['position']
+        vv = hist['velocity']
+        bb = hist['magnetic_field']
+        ee = hist['electric_field']
+        mm = hist['mass']
+        qq = hist['charge']
+        tt = hist['time']
 
         if hasattr(self, 'initial_conditions'):
             del self.initial_conditions
-        self.initial_conditions = hist[:, -1, :, :]
+
+        self.initial_conditions          = np.empty((int(hist.attrs['num_particles']), 4, 3))
+        self.initial_conditions[:, 0, :] = rr[:, -1, :]
+        self.initial_conditions[:, 1, :] = vv[:, -1, :]
+        self.initial_conditions[:, 2, :] = bb[:, -1, :]
+        self.initial_conditions[:, 3, :] = ee[:, -1, :]
 
         if hasattr(self, 'particle_properties'):
             del self.particle_properties
-        self.particle_properties = pps[:, :]
 
-        self.n = int(data.attrs['num_particles'])
+        self.particle_properties       = np.empty((int(hist.attrs['num_particles']), 2))
+        self.particle_properties[:, 0] = mm[:]
+        self.particle_properties[:, 1] = qq[:]
 
-        self.solve(T, float(data.attrs['dt']), float(data.attrs['sample_dt']))
+        self.n = hist.attrs['num_particles']
 
-        hist.resize((int(data.attrs['num_particles']), int(data.attrs['steps']) + np.shape(self.history)[1] - 1, 4, 3))
-        hist[:, int(data.attrs['steps']):, :, :] = self.history[:, 1:, :, :]
+        self.solve(T + float(hist.attrs['solve_timestep']), float(hist.attrs['solve_timestep']), float(hist.attrs['sample_timestep']))
 
-        data.attrs['steps'] = hist.shape[1]
+        rr.resize((hist.attrs['num_particles'], hist.attrs['steps'] + np.shape(self.history)[1] - 1, 3))
+        vv.resize((hist.attrs['num_particles'], hist.attrs['steps'] + np.shape(self.history)[1] - 1, 3))
+        bb.resize((hist.attrs['num_particles'], hist.attrs['steps'] + np.shape(self.history)[1] - 1, 3))
+        ee.resize((hist.attrs['num_particles'], hist.attrs['steps'] + np.shape(self.history)[1] - 1, 3))
+        tt.resize((hist.attrs['steps'] + np.shape(self.history)[1] - 1, ))
+
+        rr[:, hist.attrs['steps']:, :] = self.history[:, 1:, 0, :]
+        vv[:, hist.attrs['steps']:, :] = self.history[:, 1:, 1, :]
+        bb[:, hist.attrs['steps']:, :] = self.history[:, 1:, 2, :]
+        ee[:, hist.attrs['steps']:, :] = self.history[:, 1:, 3, :]
+
+        hist.attrs['steps'] = hist.attrs['steps'] + np.shape(self.history)[1] - 1
+
+        tt[:] = np.arange(0, hist.attrs['steps']) * hist.attrs['sample_timestep']
         
         f.close()
 
@@ -403,21 +337,136 @@ class System:
 
         f = h5py.File(f'{self.file}.hdf5', 'a')
 
-        data = f['data']
-        hist = data['history']
-        pps  = data['particle_properties']
+        hist = f['history']
 
-        self.solve(float(data.attrs['sample_dt']) * float(data.attrs['steps']), float(data.attrs['dt']), float(data.attrs['sample_dt']))
+        rr = hist['position']
+        vv = hist['velocity']
+        bb = hist['magnetic_field']
+        ee = hist['electric_field']
+        mm = hist['mass']
+        qq = hist['charge']
 
-        hist.resize((int(data.attrs['num_particles']) + np.shape(self.history)[0], int(data.attrs['steps']), 4, 3))
-        hist[int(data.attrs['num_particles']):, :, :, :] = self.history[:, :, :, :]
+        self.solve(float(hist.attrs['sample_timestep']) * float(hist.attrs['steps']), float(hist.attrs['solve_timestep']), float(hist.attrs['sample_timestep']))
 
-        pps.resize((int(data.attrs['num_particles']) + np.shape(self.history)[0], 2))
-        pps[int(data.attrs['num_particles']):, :] = self.particle_properties[:, :]
+        rr.resize((hist.attrs['num_particles'] + np.shape(self.history)[0], hist.attrs['steps'], 3))
+        vv.resize((hist.attrs['num_particles'] + np.shape(self.history)[0], hist.attrs['steps'], 3))
+        bb.resize((hist.attrs['num_particles'] + np.shape(self.history)[0], hist.attrs['steps'], 3))
+        ee.resize((hist.attrs['num_particles'] + np.shape(self.history)[0], hist.attrs['steps'], 3))
+        mm.resize((hist.attrs['num_particles'] + np.shape(self.history)[0], ))
+        qq.resize((hist.attrs['num_particles'] + np.shape(self.history)[0], ))
 
-        data.attrs['num_particles'] = int(data.attrs['num_particles']) + trials
-        
+        rr[hist.attrs['num_particles']:, :, :] = self.history[:, :, 0, :]
+        vv[hist.attrs['num_particles']:, :, :] = self.history[:, :, 1, :]
+        bb[hist.attrs['num_particles']:, :, :] = self.history[:, :, 2, :]
+        ee[hist.attrs['num_particles']:, :, :] = self.history[:, :, 3, :]
+        mm[hist.attrs['num_particles']:] = self.particle_properties[:, 0]
+        qq[hist.attrs['num_particles']:] = self.particle_properties[:, 1]
+
+        hist.attrs['num_particles'] = hist.attrs['num_particles'] + np.shape(self.history)[0]
+
         f.close()
+
+    
+    def save(self, filename):
+        '''
+        Writes the current system (the solved history) to an HDF5 file. If given the path of another file, the old file will be overwritten.
+
+        Parameters
+        ----------
+        filename (string): The path to the file. Do not include the extension.
+
+        Returns
+        -------
+        None
+        '''
+
+        if not self.solved or not self.populated:
+            raise NameError('System not yet populated / solved. Cannot save empty IC / history array.')
+
+        # Check to make sure the user actually wants to overwrite the specified file.
+        if os.path.exists(f'{filename}.hdf5'):
+            if input(f'{filename} already exists. Overwrite? (Y/N) ') != 'Y':
+                print('Write canceled.')
+                return
+            else:
+                os.remove(f'{filename}.hdf5')
+            
+        f = h5py.File(f'{filename}.hdf5', 'a')
+        f.create_group('history')
+
+        # Log the file name for use in other functions
+        self.file = filename
+
+        # Create the dataset for the solver's data
+        hist = f['history']
+
+        rr = hist.create_dataset('position',       np.shape(self.history[:, :, 0, :]),       maxshape=(None, None, None), dtype='float', compression='gzip')
+        vv = hist.create_dataset('velocity',       np.shape(self.history[:, :, 1, :]),       maxshape=(None, None, None), dtype='float', compression='gzip')
+        bb = hist.create_dataset('magnetic_field', np.shape(self.history[:, :, 2, :]),       maxshape=(None, None, None), dtype='float', compression='gzip')
+        ee = hist.create_dataset('electric_field', np.shape(self.history[:, :, 3, :]),       maxshape=(None, None, None), dtype='float', compression='gzip')
+        mm = hist.create_dataset('mass',           np.shape(self.particle_properties[:, 0]), maxshape=(None, ), dtype='float', compression='gzip')
+        qq = hist.create_dataset('charge',         np.shape(self.particle_properties[:, 1]), maxshape=(None, ), dtype='float', compression='gzip')
+        tt = hist.create_dataset('time',           np.shape(self.history[0, :, 0, 0]),       maxshape=(None, ), dtype='float', compression='gzip')
+
+        rr[:] = self.history[:, :, 0, :]
+        vv[:] = self.history[:, :, 1, :]
+        bb[:] = self.history[:, :, 2, :]
+        ee[:] = self.history[:, :, 3, :]
+        mm[:] = self.particle_properties[:, 0]
+        qq[:] = self.particle_properties[:, 1]
+
+        hist.attrs['solve_timestep']  = self.dt
+        hist.attrs['sample_timestep'] = self.dt * self.downsample
+        hist.attrs['num_particles']   = self.n
+        hist.attrs['steps']           = np.shape(self.history)[1]
+        hist.attrs['drop_lost']       = self.drop_lost
+
+        tt[:] = np.arange(0, int(hist.attrs['steps'])) * hist.attrs['sample_timestep']
+            
+        f.close()
+
+        file_size = os.path.getsize(f'{self.file}.hdf5')
+        formatted_file_size = format_bytes(file_size)
+
+        print(f'Saved file {self.file}.hdf5 containing {formatted_file_size[0]:.2f} {formatted_file_size[1]} of information.')
+
+        return
+    
+
+    def load(self, filename):
+        '''
+        Loads a file into the system. In reality, this only updates the system parameters and logs the given filename for use in other functions.
+
+        Parameters
+        ----------
+        filename (string): The path to the file. Do not include the extension.
+
+        Returns
+        -------
+        None
+        '''
+
+        if not os.path.exists(f'{filename}.hdf5'):
+            raise NameError('No such file.')
+
+        f = h5py.File(f'{filename}.hdf5', 'a')
+
+        hist = f['history']
+
+        self.file = filename
+
+        self.solved = True
+        self.populated = True
+        self.n = int(hist.attrs['num_particles'])
+
+        f.close()
+
+        file_size = os.path.getsize(f'{filename}.hdf5')
+        formatted_file_size = format_bytes(file_size)
+
+        print(f'Loaded file {self.file}.hdf5 containing {formatted_file_size[0]:.2f} {formatted_file_size[1]} of information.')
+
+        return
 
 
     def plot(self, particle_ind, threshold=0.1):

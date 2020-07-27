@@ -1,6 +1,5 @@
 import numpy as np
 from numba import njit
-from diagnostics import *
 import scipy.constants as sp
 from matplotlib.gridspec import GridSpec
 from matplotlib import pyplot as plt
@@ -400,6 +399,28 @@ def b_along_path(field, rr):
         field_rad_mag[i] = np.sqrt(vec[0]**2 + vec[1]**2)
         
     return field_vec, field_mag, field_rad_mag
+
+
+@njit
+def gyrovector(B, r, v, m, q):
+    '''
+    Finds an approximate gyrovector for the given particle at the given location. This function adapted from Kaan Ozturk's RAPT code: https://github.com/mkozturk/rapt/
+
+    Parameters
+    ----------
+    B (3 numpy array): The magnetic field at this position
+    r (3 numpy array): The position of the particle.
+    v (3 numpy array): The velocity of the particle.
+    m (float): The particle's mass.
+    q (float): The particle's charge.
+
+    Returns
+    -------
+    gyrovec (3 numpy array): The approximate gyrovector (in m).
+    '''
+
+    gamma_v = gamma(v)
+    return gamma_v * m / (q * dot(B, B)) * np.cross(B, v)
 
 
 @njit
