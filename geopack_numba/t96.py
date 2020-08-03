@@ -2,6 +2,7 @@ import numpy as np
 from scipy import special
 from numba import jit, njit
 
+# DOES NOT WORK
 @jit
 def t96(parmod,ps,x,y,z):
     """
@@ -123,6 +124,7 @@ def t96(parmod,ps,x,y,z):
 
     return bx,by,bz
 
+# DOES NOT WORK (USES CYLHARM WHICH USES SCIPY)
 @jit
 def dipshld(ps,x,y,z):
     """
@@ -146,8 +148,9 @@ def dipshld(ps,x,y,z):
 
     return bx,by,bz
 
-@jit
-def cylharm(a, x,y,z):
+# DOES NOT WORK (USES SCIPY)
+@njit
+def cylharm(a, x, y, z):
     """
     This code yields the shielding field for the perpendicular dipole.
     An approximation for the Chapman-Ferraro field by a sum of 6 cylindrical harmonics (see pp. 97-113 in the brown GSFC notebook #1)
@@ -194,7 +197,8 @@ def cylharm(a, x,y,z):
 
     return bx,by,bz
 
-@jit
+# DOES NOT WORK (USES SCIPY)
+@njit
 def cylhar1(a, x,y,z):
     """
     This code yields the shielding field for the parallel dipole.
@@ -239,6 +243,7 @@ def cylhar1(a, x,y,z):
 
     return bx,by,bz
 
+# DOES NOT WORK
 @jit
 def tailrc96(sps, x,y,z):
     """
@@ -343,6 +348,7 @@ def tailrc96(sps, x,y,z):
     return bxrc,byrc,bzrc, bxt2,byt2,bzt2, bxt3,byt3,bzt3
 
 
+# DOES NOT WORK
 @jit
 def shlcar3x3(a, x,y,z, sps):
     """
@@ -413,6 +419,7 @@ def shlcar3x3(a, x,y,z, sps):
 
     return hx,hy,hz
 
+# DOES NOT WORK
 @jit
 def ringcurr96(x,y,z):
     """
@@ -430,8 +437,8 @@ def ringcurr96(x,y,z):
 
     # common /warp/ cpss,spss,dpsrr, xnext(3),xs,zswarped,dxsx,dxsy, dxsz,dzsx,dzsywarped,dzsz,other(4),zs
     # zs here is without y-z warp
-    global cpss,spss,dpsrr, xnext,xs,zswarped,dxsx,dxsy, dxsz,dzsx,dzsywarped,dzsz,other,zs
-    d0,deltadx,xd,xldx = [2.,0.,0.,4.]  # the rc is now completely symmetric (deltadx=0)
+    global cpss, spss, dpsrr, xnext, xs, zswarped, dxsx, dxsy, dxsz, dzsx, dzsywarped, dzsz, other, zs
+    d0, deltadx, xd, xldx = [2.,0.,0.,4.]  # the rc is now completely symmetric (deltadx=0)
 
     # the original values of f[i] were multiplied by beta[i] (to reduce the number of
     # multiplications below) and by the factor -0.43, normalizing the disturbance at origin to b=-1nT
@@ -500,6 +507,7 @@ def ringcurr96(x,y,z):
 
     return bx,by,bz
 
+# DOES NOT WORK
 @jit
 def taildisk(x,y,z):
     """
@@ -570,6 +578,7 @@ def taildisk(x,y,z):
 
     return bx,by,bz
 
+# DOES NOT WORK
 @jit
 def tail87(x,z):
     """
@@ -662,6 +671,7 @@ def tail87(x,z):
     return bx,bz
 
 
+# DOES NOT WORK
 @jit
 def birk1tot_02(ps, x,y,z):
     """
@@ -677,29 +687,29 @@ def birk1tot_02(ps, x,y,z):
     # common /loopdip1/ tilt,xcentre(2),radius(2), dipx,dipy
     # common /coord21/ xx2(14),yy2(14),zz2(14)
     # common /dx1/ dx,scalein,scaleout
-    global xx1,yy1, rh,dr, tilt, xcentre,radius, dipx,dipy, xx2,yy2,zz2, dx,scalein,scaleout
+    # global xx1,yy1, rh,dr, tilt, xcentre,radius, dipx,dipy
 
-    c1 = np.array([
-        -0.911582e-03,-0.376654e-02,-0.727423e-02,-0.270084e-02,-0.123899E-02,
-        -0.154387E-02,-0.340040E-02,-0.191858E-01,-0.518979E-01,0.635061E-01,
-        0.440680,-0.396570,0.561238E-02,0.160938E-02,-0.451229E-02,
-        -0.251810E-02,-0.151599E-02,-0.133665E-02,-0.962089E-03,-0.272085E-01,
-        -0.524319E-01,0.717024E-01,0.523439,-0.405015,-89.5587,23.2806])
+    c1 = [
+        -0.911582e-3,-0.376654e-2,-0.727423e-2,-0.270084e-2,-0.123899e-2,
+        -0.154387e-2,-0.340040e-2,-0.191858e-1,-0.518979e-1,0.635061e-1,
+        0.440680,-0.396570,0.561238e-2,0.160938e-2,-0.451229e-2,
+        -0.251810e-2,-0.151599e-2,-0.133665e-2,-0.962089e-3,-0.272085e-1,
+        -0.524319e-1,0.717024e-1,0.523439,-0.405015,-89.5587,23.2806]
     c2 = np.array([
         6.04133,.305415,.606066e-02,.128379e-03,-.179406e-04,
-        1.41714,-27.2586,-4.28833,-1.30675,35.5607,8.95792,.961617E-03,
-        -.801477E-03,-.782795E-03,-1.65242,-16.5242,-5.33798,.424878E-03,
-        .331787E-03,-.704305E-03,.844342E-03,.953682E-04,.886271E-03,
+        1.41714,-27.2586,-4.28833,-1.30675,35.5607,8.95792,.961617e-3,
+        -.801477e-3,-.782795e-3,-1.65242,-16.5242,-5.33798,.424878e-3,
+        .331787e-3,-.704305e-3,.844342e-3,.953682e-4,.886271e-3,
         25.1120,20.9299,5.14569,-44.1670,-51.0672,-1.87725,20.2998,
         48.7505,-2.97415,3.35184,-54.2921,-.838712,-10.5123,70.7594,
-        -4.94104,.106166E-03,.465791E-03,-.193719E-03,10.8439,-29.7968,
-         8.08068,.463507E-03,-.224475E-04,.177035E-03,-.317581E-03,
-        -.264487E-03,.102075E-03,7.71390,10.1915,-4.99797,-23.1114,
-        29.2043,12.2928,10.9542,33.6671,-9.3851,.174615E-03,-.789777E-06,
-        .686047E-03,.460104E-04,-.345216E-02,.221871E-02,.110078E-01,
-        -.661373E-02,.249201E-02,.343978E-01,-.193145E-05,.493963E-05,
-        -.535748E-04,.191833E-04,-.100496E-03,-.210103E-03,-.232195E-02,
-        .315335E-02,-.134320E-01,-.263222E-01])
+        -4.94104,.106166e-3,.465791e-3,-.193719e-3,10.8439,-29.7968,
+         8.08068,.463507e-3,-.224475e-4,.177035e-3,-.317581e-3,
+        -.264487e-3,.102075e-3,7.71390,10.1915,-4.99797,-23.1114,
+        29.2043,12.2928,10.9542,33.6671,-9.3851,.174615e-3,-.789777e-6,
+        .686047e-3,.460104e-4,-.345216e-2,.221871e-2,.110078e-1,
+        -.661373e-2,.249201e-2,.343978e-1,-.193145e-5,.493963e-5,
+        -.535748e-4,.191833e-4,-.100496e-3,-.210103e-3,-.232195e-2,
+        .315335e-2,-.134320e-1,-.263222e-1])
     tilt,xcentre,radius,dipx,dipy = [1.00891,[2.28397,-5.60831],[1.86106,7.83281],1.12541,0.945719]
     dx,scalein,scaleout = [-0.16,0.08,0.4]
     xx1 = np.array([-11.,-7,-7,-3,-3,1,1,1,5,5,9,9])
@@ -760,18 +770,20 @@ def birk1tot_02(ps, x,y,z):
     if (tet0 >= tetr1n-dtet0) & (tet0 <= tetr1n+dtet0): loc = 3 # north psbl
     if (tet0 >= tetr1s-dtet0) & (tet0 <= tetr1s+dtet0): loc = 4 # south psbl
 
-    bx,by,bz = [0.]*3
+    bx, by, bz = (0.0, 0.0, 0.0)
     # in the high-lat. region use the subroutine dipoct
     if loc == 1:
         xi = [x,y,z,ps]
-        d1 = diploop1(xi)
+        diploop1_params = (xx1, yy1, tilt,xcentre, radius, dipx, dipy, rh, dr)
+        d1 = diploop1(xi, diploop1_params)
         for i in range(26):
             bx=bx+c1[i]*d1[0,i]
             by=by+c1[i]*d1[1,i]
             bz=bz+c1[i]*d1[2,i]
     elif loc == 2:
         xi = [x,y,z,ps]
-        d2 = condip1(xi)
+        condip1_params = (xx2, yy2, zz2, dx, scalein, scaleout)
+        d2 = condip1(xi, condip1_params)
         for i in range(79):
             bx=bx+c2[i]*d2[0,i]
             by=by+c2[i]*d2[1,i]
@@ -792,7 +804,8 @@ def birk1tot_02(ps, x,y,z):
         x1= xas1*cpsas+zas1*spsas
         z1=-xas1*spsas+zas1*cpsas
         xi = [x1,y1,z1,ps]
-        d1 = diploop1(xi)
+        diploop1_params = (xx1, yy1, tilt,xcentre, radius, dipx, dipy, rh, dr)
+        d1 = diploop1(xi, diploop1_params)
         # bx1,by1,bz1 are field components in the northern boundary point
         bx1,by1,bz1 = [0.]*3
         for i in range(26):
@@ -807,7 +820,8 @@ def birk1tot_02(ps, x,y,z):
         x2= xas2*cpsas+zas2*spsas
         z2=-xas2*spsas+zas2*cpsas
         xi = [x2,y2,z2,ps]
-        d2 = condip1(xi)
+        condip1_params = (xx2, yy2, zz2, dx, scalein, scaleout)
+        d2 = condip1(xi, condip1_params)
         # bx2,by2,bz2 are field components in the southern boundary point
         bx2,by2,bz2 = [0.]*3
         for i in range(79):
@@ -837,10 +851,11 @@ def birk1tot_02(ps, x,y,z):
         zas1=r*ct01as
         x1= xas1*cpsas+zas1*spsas
         z1=-xas1*spsas+zas1*cpsas
-        xi = [x1,y1,z1,ps]
-        d2 = condip1(xi)
+        xi = np.array([x1,y1,z1,ps])
+        condip1_params = (xx2, yy2, zz2, dx, scalein, scaleout)
+        d2 = condip1(xi, condip1_params)
         # bx1,by1,bz1 are field components in the northern boundary point
-        bx1,by1,bz1 = [0.]*3
+        bx1,by1,bz1 = np.zeros(3)
         for i in range(79):
             bx1=bx1+c2[i]*d2[0,i]
             by1=by1+c2[i]*d2[1,i]
@@ -852,8 +867,9 @@ def birk1tot_02(ps, x,y,z):
         zas2=r*ct02as
         x2= xas2*cpsas+zas2*spsas
         z2=-xas2*spsas+zas2*cpsas
-        xi = [x1,y1,z1,ps]
-        d1 = diploop1(xi)
+        xi = np.array([x1,y1,z1,ps])
+        diploop1_params = (xx1, yy1, tilt,xcentre, radius, dipx, dipy, rh, dr)
+        d1 = diploop1(xi, diploop1_params)
         # bx2,by2,bz2 are field components in the southern boundary point
         bx2,by2,bz2 = [0.]*3
         for i in range(26):
@@ -879,8 +895,9 @@ def birk1tot_02(ps, x,y,z):
 
     return bx,by,bz
 
+# WORKS
 @jit
-def diploop1(xi):
+def diploop1(xi, diploop1_params):
     """
     Calculates dependent model variables and their derivatives for given independent variables
     and model parameters. Specifies model functions with free parameters which must be determined
@@ -898,7 +915,7 @@ def diploop1(xi):
     # common /coord11/ xx1(12),yy1(12)
     # common /loopdip1/ tilt,xcentre(2),radius(2),  dipx,dipy
     # common /rhdr/rh,dr
-    global xx1,yy1, tilt,xcentre,radius, dipx,dipy, rh,dr
+    xx1,yy1, tilt,xcentre,radius, dipx,dipy, rh,dr = diploop1_params
 
     x,y,z, ps = xi
     sps=np.sin(ps)
@@ -974,7 +991,8 @@ def diploop1(xi):
 
     return d
 
-@jit
+# WORKS
+@njit
 def dipxyz(x,y,z):
     """
     Returns the field components produced by three dipoles, each having M=Me
@@ -1006,7 +1024,8 @@ def dipxyz(x,y,z):
     return bxx,byx,bzx,bxy,byy,bzy,bxz,byz,bzz
 
 
-@jit
+# WORKS
+@njit
 def crosslp(x,y,z,xc,rl,al):
     """
     Returns field components of a pair of loops with a common center and diameter,
@@ -1035,7 +1054,8 @@ def crosslp(x,y,z,xc,rl,al):
 
     return bx,by,bz
 
-@jit
+# WORKS
+@njit
 def circle(x,y,z,rl):
     """
     Returns components of the field from a circular current loop of radius rl.
@@ -1072,8 +1092,9 @@ def circle(x,y,z,rl):
     return bx,by,bz
 
 
-@jit
-def condip1(xi):
+# WORKS
+@njit
+def condip1(xi, condip1_params):
     """
     Calculates dependent model variables and their derivatives for given independent variables
     and model parameters. Specifies model functions with free parameters which must be determined
@@ -1089,7 +1110,8 @@ def condip1(xi):
 
     # common /dx1/ dx,scalein,scaleout
     # common /coord21/ xx(14),yy(14),zz(14)
-    global xx2,yy2,zz2, dx,scalein,scaleout
+
+    xx2, yy2, zz2, dx, scalein, scaleout = condip1_params
 
     x,y,z, ps = xi
     sps=np.sin(ps)
@@ -1213,7 +1235,9 @@ def condip1(xi):
 
     return d
 
-@jit
+
+# WORKS
+@njit
 def birk1shld(ps, x,y,z):
     """
     The 64 linear parameters are amplitudes of the "box" harmonics. The 16 nonlinear parametersare the scales Pi,
@@ -1299,6 +1323,7 @@ def birk1shld(ps, x,y,z):
 
     return bx,by,bz
 
+# WORKS
 @jit
 def birk2tot_02(ps, x,y,z):
     """
@@ -1316,7 +1341,8 @@ def birk2tot_02(ps, x,y,z):
 
     return bx,by,bz
 
-@jit
+# WORKS
+@njit
 def birk2shl(x,y,z, ps):
     """
     The model parameters are provided to this module via common-block /A/.
@@ -1395,6 +1421,7 @@ def birk2shl(x,y,z, ps):
                     l += 1
     return hx,hy,hz
 
+# WORKS
 @jit
 def r2_birk(x,y,z, ps):
     """
@@ -1405,46 +1432,47 @@ def r2_birk(x,y,z, ps):
     :return:
     """
 
-    delarg,delarg1= [0.03,0.015]
+    delarg, delarg1 = [0.03, 0.015]
 
-    psi=ps
-    cps=np.cos(ps)
-    sps=np.sin(ps)
+    psi = ps
+    cps = np.cos(ps)
+    sps = np.sin(ps)
 
-    xsm=x*cps-z*sps
-    zsm=z*cps+x*sps
+    xsm = x * cps - z * sps
+    zsm = z * cps + x * sps
 
-    xks=xksi(xsm,y,zsm)
-    if xks < -(delarg+delarg1):
+    xks = xksi(xsm, y, zsm)
+    if xks < -(delarg + delarg1):
         # all components are multiplied by the factor -0.02, so that bz=-1 nt at x=-5.3 re, y=z=0
-        bxsm,by,bzsm = np.dot(r2outer(xsm,y,zsm),-0.02)
-    elif (xks < -delarg+delarg1):
-        f2=-0.02*tksi(xks,-delarg,delarg1)
-        f1=-0.02-f2
-        bxsm1,by1,bzsm1 = np.dot(r2outer(xsm,y,zsm),f1)
-        bxsm2,by2,bzsm2 = np.dot(r2sheet(xsm,y,zsm),f2)
+        bxsm, by, bzsm = np.array(r2outer(xsm, y, zsm)) * -0.02
+    elif (xks < -delarg + delarg1):
+        f2 = -0.02 * tksi(xks, -delarg, delarg1)
+        f1 = -0.02 - f2
+        bxsm1,by1,bzsm1 = np.array(r2outer(xsm,y,zsm)) * f1
+        bxsm2,by2,bzsm2 = np.array(r2sheet(xsm,y,zsm)) * f2
         bxsm=bxsm1+bxsm2
         by  =by1+by2
         bzsm=bzsm1+bzsm2
     elif (xks < delarg-delarg1):
-        bxsm,by,bzsm = np.dot(r2outer(xsm,y,zsm),-0.02)
+        bxsm,by,bzsm = np.array(r2outer(xsm,y,zsm)) * -0.02
     elif (xks < delarg+delarg1):
         f1=-0.02*tksi(xks,delarg,delarg1)
         f2=-0.02-f1
-        bxsm1,by1,bzsm1 = np.dot(r2inner(xsm,y,zsm),f1)
-        bxsm2,by2,bzsm2 = np.dot(r2sheet(xsm,y,zsm),f2)
+        bxsm1,by1,bzsm1 = np.array(r2inner(xsm,y,zsm)) * f1
+        bxsm2,by2,bzsm2 = np.array(r2sheet(xsm,y,zsm)) * f2
         bxsm=bxsm1+bxsm2
         by  =by1+by2
         bzsm=bzsm1+bzsm2
     else:
-        bxsm,by,bzsm = np.dot(r2inner(xsm,y,zsm),-0.02)
+        bxsm,by,bzsm = np.array(r2inner(xsm,y,zsm)) * -0.02
 
     bx=bxsm*cps+bzsm*sps
     bz=bzsm*cps-bxsm*sps
 
     return bx,by,bz
 
-@jit
+# WORKS
+@njit
 def xksi(x,y,z):
     """
     :param x,y,z:
@@ -1492,7 +1520,8 @@ def xksi(x,y,z):
 
     return xksi
 
-@jit
+# WORKS
+@njit
 def tksi(xksi,xks0,dxksi):
 
     tdz3=2.*dxksi**3
@@ -1512,7 +1541,8 @@ def tksi(xksi,xks0,dxksi):
     return tksii
 
 
-@jit
+# WORKS
+@njit
 def fexp(s,a):
     # TODO the function is not continuous in a???
     if a < 0:
@@ -1520,7 +1550,8 @@ def fexp(s,a):
     else:
         return s*np.exp(a*(s*s-1))
 
-@jit
+# WORKS
+@njit
 def fexp1(s,a):
     # TODO the function is not continuous in a???
     if a <= 0:
@@ -1529,7 +1560,8 @@ def fexp1(s,a):
         return np.exp(a*(s*s-1))
 
 
-@jit
+# WORKS
+@njit
 def r2outer(x,y,z):
     """
 
@@ -1559,7 +1591,8 @@ def r2outer(x,y,z):
 
     return bx,by,bz
 
-@jit
+# WORKS
+@njit
 def loops4(x,y,z,xc,yc,zc,r,theta,phi):
     """
     Returns field components from a system of 4 current loops, positioned symmetrically
@@ -1634,7 +1667,9 @@ def loops4(x,y,z,xc,yc,zc,r,theta,phi):
 
     return bx,by,bz
 
-@jit
+
+# WORKS
+@njit
 def r2sheet(x,y,z):
     """
 
@@ -1749,28 +1784,29 @@ def r2sheet(x,y,z):
     return bx,by,bz
 
 
-@jit
-def r2inner (x,y,z):
+# WORKS
+@njit
+def r2inner(x, y, z):
+    pl1, pl2, pl3, pl4, pl5, pl6, pl7, pl8 = [154.185, -2.12446, 0.601735e-1, -0.153954e-2, 0.355077e-4, 29.9996, 262.886, 99.9132]
+    pn1, pn2, pn3, pn4, pn5, pn6, pn7, pn8 = [-8.1902, 6.5239, 5.504, 7.7815, 0.8573, 3.0986, 0.0774, -0.038]
 
-    pl1,pl2,pl3,pl4,pl5,pl6,pl7,pl8 = [154.185,-2.12446,.601735e-01,-.153954e-02,.355077e-04,29.9996,262.886,99.9132]
-    pn1,pn2,pn3,pn4,pn5,pn6,pn7,pn8 = [-8.1902,6.5239,5.504,7.7815,.8573,3.0986,.0774,-.038]
-
-    cbx,cby,cbz = bconic(x,y,z,5)
+    cbx, cby, cbz = bconic(x, y, z, 5)
 
     # now introduce one 4-loop system:
-    dbx8,dby8,dbz8 = loops4(x,y,z,pn1,pn2,pn3,pn4,pn5,pn6)
-    dbx6,dby6,dbz6 = dipdistr(x-pn7,y,z,0)
-    dbx7,dby7,dbz7 = dipdistr(x-pn8,y,z,1)
+    dbx8, dby8, dbz8 = loops4(x, y, z, pn1, pn2, pn3, pn4, pn5, pn6)
+    dbx6, dby6, dbz6 = dipdistr(x - pn7, y, z, 0)
+    dbx7, dby7, dbz7 = dipdistr(x - pn8, y, z, 1)
 
     # now compute the field components:
-    bx=pl1*cbx[0]+pl2*cbx[1]+pl3*cbx[2]+pl4*cbx[3]+pl5*cbx[4]+pl6*dbx6+pl7*dbx7+pl8*dbx8
-    by=pl1*cby[0]+pl2*cby[1]+pl3*cby[2]+pl4*cby[3]+pl5*cby[4]+pl6*dby6+pl7*dby7+pl8*dby8
-    bz=pl1*cbz[0]+pl2*cbz[1]+pl3*cbz[2]+pl4*cbz[3]+pl5*cbz[4]+pl6*dbz6+pl7*dbz7+pl8*dbz8
+    bx=pl1 * cbx[0] + pl2 * cbx[1] +pl3*cbx[2]+pl4*cbx[3]+pl5*cbx[4]+pl6*dbx6+pl7*dbx7+pl8*dbx8
+    by=pl1 * cby[0] + pl2 * cby[1] +pl3*cby[2]+pl4*cby[3]+pl5*cby[4]+pl6*dby6+pl7*dby7+pl8*dby8
+    bz=pl1 * cbz[0] + pl2 * cbz[1] +pl3*cbz[2]+pl4*cbz[3]+pl5*cbz[4]+pl6*dbz6+pl7*dbz7+pl8*dbz8
 
-    return bx,by,bz
+    return bx, by, bz
 
 
-@jit
+# WORKS
+@njit
 def bconic(x,y,z,nmax):
     """
     # Conical harmonics
@@ -1821,6 +1857,7 @@ def bconic(x,y,z,nmax):
     return cbx,cby,cbz
 
 
+# WORKS
 @njit
 def dipdistr(x, y, z, mode):
     """
@@ -1851,6 +1888,8 @@ def dipdistr(x, y, z, mode):
 
     return bx, by, bz
 
+
+# WORKS
 @njit
 def intercon(x,y,z):
     """
@@ -1906,6 +1945,7 @@ def intercon(x,y,z):
     return bx, by, bz
 
 
+# WORKS
 @njit
 def dipole(ps, x, y, z):
     """

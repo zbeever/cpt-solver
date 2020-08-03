@@ -1,11 +1,89 @@
 import os
 import h5py
-import tqdm
-from utils import *
+import numpy as np
+
 from diagnostics import *
 
-class Analyzer:
+class analyzer:
+    '''
+    Used to analyze a solved system of particles.
+
+    Methods
+    -------
+    __open(read_write='a')
+        Opens the associated file and checks to make sure the derived_quantities field exists.
+
+    __close()
+        Closes the associated file and frees up memory.
+
+    __required(func_list, recalc=False, *args)
+        Ensures all functions listed in func_list have been run and returns their results.
+
+    __prepare(label, shape, recalc)
+        Grabs data from file or, failing that, creates a new database.
+
+    position()
+        Returns the position vector (in m) at each point along each particle's trajectory.
+
+    velocity()
+        Returns the velocity vector (in m/s) at each point along each particle's trajectory.
+
+    magnetic_field()
+        Returns the magnetic field (in T) at each point along each particle's trajectory.
+
+    electric_field()
+
+    mass()
+
+    charge()
+
+    time()
+
+    r_mag(numba=False, recalc=False)
+
+    b_mag(numba=False, recalc=False)
+
+    v_par(numba=False, recalc=False)
+
+    v_perp(numba=False, recalc=False)
+
+    ke(numba=False, recalc=False)
+
+    moment(numba=False, recalc=False)
+
+    pitch_ang(numba=False, recalc=False)
+
+    gyrorad(numba=False, recalc=False)
+
+    gyrofreq(numba=False, recalc=False)
+
+    eq_pitch_ang(b_field=None, unwrapped=False, recalc=False, recalc_all=False)
+
+    gca(numba=False, recalc=False)
+
+    moment_diff(delta_t=None, bins=100, numba=False, recalc=False, recalc_all=False)
+
+    eq_pitch_ang_diff(delta_t=None, bins=100, numba=False, recalc=False, recalc_all=False)
+
+    moment_trans(delta_t=None, bins=100, numba=False, recalc=False, recalc_all=False)
+
+    eq_pitch_ang_trans(delta_t=None, bins=100, numba=False, recalc=False, recalc_all=False)
+    '''
+
     def __init__(self, filename):
+        '''
+        Associated a file with the object. 
+
+        Parameters
+        ----------
+        filename : string
+            The path to the file. Do not include the extension.
+
+        Returns
+        -------
+        None
+        '''
+
         if not os.path.exists(f'{filename}.hdf5'):
             raise NameError('No such file.')
 
@@ -17,9 +95,9 @@ class Analyzer:
         print(f'Loaded file {self.file}.hdf5 containing {formatted_file_size[0]:.2f} {formatted_file_size[1]} of information.')
 
 
-    def __open(self):
+    def __open(self, read_write='a'):
         '''
-        Opens the associated file and checks to make sure the derived_quantities field exists. Refrain from calling this function directly.
+        Opens the associated file and checks to make sure the derived_quantities field exists.
 
         Parameters
         ----------
@@ -30,7 +108,7 @@ class Analyzer:
         None
         '''
 
-        self.f = h5py.File(f'{self.file}.hdf5', 'a')
+        self.f = h5py.File(f'{self.file}.hdf5', read_write)
 
         self.hist = self.f['history']
 
@@ -42,6 +120,9 @@ class Analyzer:
         self.qq = self.hist['charge']
         self.tt = self.hist['time']
 
+        self.num_particles = self.hist.attrs['num_particles']
+        self.steps = self.hist.attrs['steps']
+
         if 'derived_quantities' not in self.f.keys():
             self.f.create_group('derived_quantities')
 
@@ -52,7 +133,7 @@ class Analyzer:
 
     def __close(self):
         '''
-        Closes the associated file and frees up memory. Refrain from calling this function directly.
+        Closes the associated file and frees up memory.
 
         Parameters
         ----------
@@ -77,66 +158,79 @@ class Analyzer:
         del self.qq
         del self.tt
 
+        del self.steps
+        del self.num_particles
+
         del self.dvqt
 
         return
 
 
-    def __write(self, label, shape, func, force_recalc):
+    def __required(self, func_list, recalc=False, *args):
         '''
-        Writes a new derived quantity to the file and returns the result.
-        This process is lazy in the sense that it will return whatever is on file unless you force a recalculation.
+        Ensures all functions listed in func_list have been run and returns their results.
 
         Parameters
         ----------
-        label (string): The name of the dataset.
-        shape (tuple): The shape of the dataset.
-        func(): A zero-argument function returning the derived quantity.
-        force_recalc (bool): Whether the quantity should be recalculated (provided an array already exists on disc).
+        func_list : function[N]
+            A list of methods to run.
+
+        recalc : bool, optional
+            Whether the quantities requested should be recalculated (in the case they already exists on file). Defaults to false.
+
+        *args : any
+            If recalc=True, feeds additional arguments into method(s) being run.
 
         Returns
         -------
-        qt_v (NxNx...xN numpy array): The quantity calculated.
+        results : (float[N, ..., M], ..., float[N, ..., M])
+            Tuple containing the requested quantities in the same order as they were specified.
         '''
 
-        qt_v = np.empty(shape)
-
-        if label in self.dvqt.keys():
-            if self.dvqt[label].shape == shape and not force_recalc:
-                qt_v = self.dvqt[label][:]
-            else:
-                results = func()
-                self.dvqt[label].resize(np.shape(results))
-                self.dvqt[label][:] = results
-                qt_v = self.dvqt[label][:]
-        else:
-            self.dvqt.create_dataset(label, shape, maxshape=tuple([None for k in range(len(shape))]), dtype='float', compression='gzip')
-            self.dvqt[label][:] = func()
-            qt_v = self.dvqt[label][:]
-
-        return qt_v
-
-
-    def __required(self, func_list, write=True, force_recalc=False):
-        '''
-        Ensures all listed quantities have been calculated.
-
-        Parameters
-        ----------
-        func_list (list): A list of methods to run.
-        force_recalc (bool): Whether each quantity should be recalculated (provided an array already exists on disc).
-
-        Returns
-        -------
-        None
-        '''
+        if type(func_list) != list:
+            return func_list(*args, recalc=recalc)
 
         results = []
 
         for func in func_list:
-            results.append(func(write=write, force_recalc=force_recalc))
+            results.append(func(*args, recalc=recalc))
 
         return tuple(results)
+
+
+    def __prepare(self, label, shape, recalc):
+        '''
+        Grabs data from file or, failing that, creates a new database.
+
+        Parameters
+        ----------
+        label : string
+            The label of the quantity to use.
+
+        shape : int(N)
+            A tuple describing the shape of the dataset.
+
+        recalc : bool
+            Whether the requested quantity should be recalculated.
+
+        Returns
+        -------
+        found_val : bool
+            Whether the quantity could be found on file. 
+
+        results : float[N, ..., M]
+            An array containing the requested quantity.
+        '''
+
+        if label in self.dvqt.keys():
+            if self.dvqt[label].shape == shape and not recalc:
+                qt_v = self.dvqt[label][:]
+                return True, qt_v
+            else:
+                del self.dvqt[label]
+
+        self.dvqt.create_dataset(label, shape, maxshape=tuple([None for k in range(len(shape))]), dtype='float', compression='gzip')
+        return False, None
 
 
     def position(self):
@@ -149,14 +243,16 @@ class Analyzer:
 
         Returns
         -------
-        rr_v (NxM numpy array): The position vector (in m) at each point along each particle's trajectory.
+        rr_v : float[N, M]
+            The position vector (in m) at each point along each particle's trajectory.
         '''
 
-        self.__open()
-        rr_v = self.rr[:]
-        self.__close()
+        self.__open('r')
+        rr_v = self.rr[:, :, :]
 
+        self.__close()
         return rr_v
+
 
     def velocity(self):
         '''
@@ -168,14 +264,16 @@ class Analyzer:
 
         Returns
         -------
-        vv_v (NxM numpy array): The velocity vector (in m/s) at each point along each particle's trajectory.
+        vv_v : float[N, M]
+            The velocity vector (in m/s) at each point along each particle's trajectory.
         '''
 
-        self.__open()
-        vv_v = self.vv[:]
-        self.__close()
+        self.__open('r')
+        vv_v = self.vv[:, :, :]
 
+        self.__close()
         return vv_v
+
 
     def magnetic_field(self):
         '''
@@ -187,13 +285,14 @@ class Analyzer:
 
         Returns
         -------
-        bb_v (NxM numpy array): The magnetic field (in T) at each point along each particle's trajectory.
+        bb_v : float[N, M]
+            The magnetic field (in T) at each point along each particle's trajectory.
         '''
 
-        self.__open()
-        bb_v = self.bb[:]
-        self.__close()
+        self.__open('r')
+        bb_v = self.bb[:, :, :]
 
+        self.__close()
         return bb_v
 
 
@@ -210,10 +309,10 @@ class Analyzer:
         ee_v (NxM numpy array): The electric field (in V/m) at each point along each particle's trajectory.
         '''
 
-        self.__open()
-        ee_v = self.ee[:]
-        self.__close()
+        self.__open('r')
+        ee_v = self.ee[:, :, :]
 
+        self.__close()
         return ee_v
 
 
@@ -230,10 +329,10 @@ class Analyzer:
         mm_v (N numpy array): The mass (in kg) of each particle.
         '''
 
-        self.__open()
+        self.__open('r')
         mm_v = self.mm[:]
-        self.__close()
 
+        self.__close()
         return mm_v
 
 
@@ -250,10 +349,10 @@ class Analyzer:
         qq_v (N numpy array): The charge (in C) of each particle.
         '''
 
-        self.__open()
+        self.__open('r')
         qq_v = self.qq[:]
-        self.__close()
 
+        self.__close()
         return qq_v
 
 
@@ -270,21 +369,21 @@ class Analyzer:
         tt_v (N numpy array): The time (in s) at each timestep.
         '''
 
-        self.__open()
+        self.__open('r')
         tt_v = self.tt[:]
-        self.__close()
 
+        self.__close()
         return tt_v
 
 
-    def r_mag(self, write=False, force_recalc=False):
+    def r_mag(self, numba=False, recalc=False):
         '''
         Returns the distance (in m) of each particle from the origin.
 
         Parameters
         ----------
-        write (bool): Whether the quantity should be written to the file. Defaults to false.
-        force_recalc (bool): Whether the quantity should be recalculated (provided an array already exists on disc). Defaults to false.
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
@@ -292,27 +391,30 @@ class Analyzer:
         '''
 
         self.__open()
+        found_val, r_mag_v = self.__prepare('r_mag', self.rr.shape[0:2], recalc)
 
-        def r_mag_curried():
-            return position_mag(self.rr[:])
+        if found_val:
+            self.__close()
+            return r_mag_v
+        else:
+            if numba:
+                r_mag_v = mag(self.rr[:])
+            else:
+                r_mag_v = np.linalg.norm(self.rr[:], axis=2)
 
-        if not write:
-            return r_mag_curried()
-
-        r_mag_v = self.__write('r_mag', self.rr.shape[0:2], r_mag_curried, force_recalc)
-        self.__close()
-
-        return r_mag_v
+            self.dvqt['r_mag'][:] = r_mag_v
+            self.__close()
+            return r_mag_v
 
 
-    def b_mag(self, write=True, force_recalc=False):
+    def b_mag(self, numba=False, recalc=False):
         '''
         Returns the magnetic field strength (in T) at each point along each particle's trajectory.
 
         Parameters
         ----------
-        write (bool): Whether the quantity should be written to the file. Defaults to false.
-        force_recalc (bool): Whether the quantity should be recalculated (provided an array already exists on disc).
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
@@ -320,27 +422,30 @@ class Analyzer:
         '''
 
         self.__open()
+        found_val, b_mag_v = self.__prepare('b_mag', self.bb.shape[0:2], recalc)
 
-        def b_mag_curried():
-            return b_mag(self.bb[:])
+        if found_val:
+            self.__close()
+            return b_mag_v
+        else:
+            if numba:
+                b_mag_v = mag(self.bb[:])
+            else:
+                b_mag_v = np.linalg.norm(self.bb[:], axis=2)
 
-        if not write:
-            return b_mag_curried()
-
-        b_mag_v = self.__write('b_mag', self.bb.shape[0:2], b_mag_curried, force_recalc)
-        self.__close()
-
-        return b_mag_v
+            self.dvqt['b_mag'][:] = b_mag_v
+            self.__close()
+            return b_mag_v
 
 
-    def v_par(self, write=True, force_recalc=False):
+    def v_par(self, numba=False, recalc=False):
         '''
         Returns the velocity (in m/s) parallel to the background magnetic field at each point along each particle's trajectory.
 
         Parameters
         ----------
-        write (bool): Whether the quantity should be written to the file. Defaults to false.
-        force_recalc (bool): Whether the quantity should be recalculated (provided an array already exists on disc).
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
@@ -348,27 +453,32 @@ class Analyzer:
         '''
 
         self.__open()
+        found_val, v_par_v = self.__prepare('v_par', self.vv.shape[0:2], recalc)
 
-        def v_par_curried():
-            return velocity_par(self.vv[:], self.bb[:])
+        if found_val:
+            self.__close()
+            return v_par_v
+        else:
+            if numba:
+                v_par_v = v_par(self.vv[:], self.bb[:])
+            else:
+                v_dot_b = np.sum(self.vv[:] * self.bb[:], axis=2)
+                b_dot_b = np.sum(self.bb[:]**2, axis=2)
+                v_par_v = np.abs(np.divide(v_dot_b, b_dot_b, out=np.zeros_like(v_dot_b), where=b_dot_b != 0) * np.linalg.norm(self.bb[:], axis=2))
 
-        if not write:
-            return v_par_curried()
-
-        v_par_v = self.__write('v_par', self.vv.shape[0:2], v_par_curried, force_recalc)
-        self.__close()
-
-        return v_par_v
+            self.dvqt['v_par'][:] = v_par_v
+            self.__close()
+            return v_par_v
 
 
-    def v_perp(self, write=True, force_recalc=False):
+    def v_perp(self, numba=False, recalc=False):
         '''
         Returns the velocity (in m/s) perpendicular to the background magnetic field at each point along each particle's trajectory.
 
         Parameters
         ----------
-        write (bool): Whether the quantity should be written to the file. Defaults to false.
-        force_recalc (bool): Whether the quantity should be recalculated (provided an array already exists on disc).
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
@@ -376,27 +486,33 @@ class Analyzer:
         '''
 
         self.__open()
+        found_val, v_perp_v = self.__prepare('v_perp', self.vv.shape[0:2], recalc)
 
-        def v_perp_curried():
-            return velocity_perp(self.vv[:], self.bb[:])
+        if found_val:
+            self.__close()
+            return v_perp_v
+        else:
+            if numba:
+                v_perp_v = v_perp(self.vv[:], self.bb[:])
+            else:
+                v_dot_b = np.sum(self.vv[:] * self.bb[:], axis=2)
+                b_dot_b = np.sum(self.bb[:]**2, axis=2)
+                scale_factor = np.divide(v_dot_b, b_dot_b, out=np.zeros_like(v_dot_b), where=b_dot_b != 0)
+                v_perp_v = np.linalg.norm(self.vv[:] - scale_factor[:, :, np.newaxis] * self.bb[:], axis=2)
 
-        if not write:
-            return v_perp_curried()
-
-        v_perp_v = self.__write('v_perp', self.vv.shape[0:2], v_perp_curried, force_recalc)
-        self.__close()
-
-        return v_perp_v
+            self.dvqt['v_perp'][:] = v_perp_v
+            self.__close()
+            return v_perp_v
 
 
-    def ke(self, write=True, force_recalc=False):
+    def ke(self, numba=False, recalc=False):
         '''
         Returns the kinetic energy (in eV) of each particle at each point along its trajectory.
 
         Parameters
         ----------
-        write (bool): Whether the quantity should be written to the file. Defaults to false.
-        force_recalc (bool): Whether the quantity should be recalculated (provided an array already exists on disc).
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
@@ -404,136 +520,166 @@ class Analyzer:
         '''
 
         self.__open()
+        found_val, ke_v = self.__prepare('ke', self.vv.shape[0:2], recalc)
 
-        def ke_curried():
-            return kinetic_energy(self.vv[:], self.mm[:])  
+        if found_val:
+            self.__close()
+            return ke_v
+        else:
+            if numba:
+                ke_v = ke(self.vv[:], self.mm[:])
+            else:
+                gamma_v = 1.0 / np.sqrt(1.0 - np.sum(self.vv[:]**2, axis=2) / sp.c**2)
+                ke_v = J_to_eV(np.array(self.mm[:])[:, np.newaxis] * sp.c**2 * (gamma_v[:] - 1.0))
 
-        if not write:
-            return ke_curried()
-
-        ke_v = self.__write('ke', self.vv.shape[0:2], ke_curried, force_recalc)
-        self.__close()
-
-        return ke_v
+            self.dvqt['ke'][:] = ke_v
+            self.__close()
+            return ke_v
 
 
-    def moment(self, write=True, force_recalc=False):
+    def moment(self, numba=False, recalc=False):
         '''
         Returns the magnetic moment (in MeV/G) of each particle at each point along its trajectory.
 
         Parameters
         ----------
-        write (bool): Whether the quantity should be written to the file. Defaults to false.
-        force_recalc (bool): Whether the quantity should be recalculated (provided an array already exists on disc).
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
         moment_v (NxM numpy array): The magnetic moment (in MeV/G) of each particle at each timestep.
         '''
 
-        v_perp_v, b_mag_v = self.__required([self.v_perp, self.b_mag], write, force_recalc)
-
         self.__open()
+        found_val, moment_v = self.__prepare('moment', self.vv.shape[0:2], recalc)
 
-        def moment_curried():
-            return magnetic_moment(v_perp_v[:], b_mag_v[:], self.mm[:])
+        if found_val:
+            self.__close()
+            return moment_v
+        else:
+            if numba:
+                moment_v = moment(self.vv[:], self.bb[:], self.mm[:])
+            else:
+                v_dot_b = np.sum(self.vv[:] * self.bb[:], axis=2)
+                b_dot_b = np.sum(self.bb[:]**2, axis=2)
+                scale_factor = np.divide(v_dot_b, b_dot_b, out=np.zeros_like(v_dot_b), where=b_dot_b != 0)
+                v_perp_v = self.vv[:] - scale_factor[:, :, np.newaxis] * self.bb[:]
+                v_perp_v_squared = np.sum(v_perp_v**2, axis=2)
+                b_mag = np.sqrt(b_dot_b)
+                moment_v = 0.5 * np.array(self.mm[:])[:, np.newaxis] * np.divide(v_perp_v_squared, b_mag, out=np.zeros_like(v_perp_v_squared), where=b_mag != 0) * 6.242e8
 
-        if not write:
-            return moment_curried()
-
-        moment_v = self.__write('moment', self.vv.shape[0:2], moment_curried, force_recalc)
-        self.__close()
-
-        return moment_v
+            self.dvqt['moment'][:] = moment_v
+            self.__close()
+            return moment_v
 
 
-    def pitch_ang(self, write=True, force_recalc=False):
+    def pitch_ang(self, numba=False, recalc=False):
         '''
         Returns the pitch angle (in radians) of each particle at each point along its trajectory.
 
         Parameters
         ----------
-        write (bool): Whether the quantity should be written to the file. Defaults to false.
-        force_recalc (bool): Whether the quantity should be recalculated (provided an array already exists on disc).
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
-        pitch_ang_v (NxM numpy array): The pitch angle (in radians) of each particle at each timestep.
+        pitch_v (NxM numpy array): The pitch angle (in radians) of each particle at each timestep.
         '''
 
         self.__open()
+        found_val, pitch_ang_v = self.__prepare('pitch_ang', self.vv.shape[0:2], recalc)
 
-        def pitch_ang_curried():
-            return pitch_angle(self.vv[:], self.bb[:])
+        if found_val:
+            self.__close()
+            return pitch_ang_v
+        else:
+            if numba:
+                pitch_ang_v = pitch_ang(self.vv[:], self.bb[:])
+            else:
+                v_dot_b = np.sum(self.vv[:] * self.bb[:], axis=2)
+                v_mag = np.linalg.norm(self.vv[:], axis=2)
+                b_mag = np.linalg.norm(self.bb[:], axis=2) 
+                denom = v_mag * b_mag
+                cos_pa = np.divide(v_dot_b, denom, out=np.zeros_like(v_dot_b), where=denom != 0)
+                pitch_ang_v = np.arccos(cos_pa)
 
-        if not write:
-            return pitch_ang_curried()
-
-        pitch_ang_v = self.__write('pitch_ang', self.vv.shape[0:2], pitch_ang_curried, force_recalc)
-        self.__close()
-
-        return pitch_ang_v
+            self.dvqt['pitch_ang'][:] = pitch_ang_v
+            self.__close()
+            return pitch_ang_v
 
     
-    def gyrorad(self, write=True, force_recalc=False):
+    def gyrorad(self, numba=False, recalc=False):
         '''
         Returns the gyroradius (in m) of each particle at each point along its trajectory.
 
         Parameters
         ----------
-        write (bool): Whether the quantity should be written to the file. Defaults to false.
-        force_recalc (bool): Whether the quantity should be recalculated (provided an array already exists on disc).
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
         gyrorad_v (NxM numpy array): The gyroradius (in m) of each particle at each timestep.
         '''
 
-        ke_v, v_perp_v, b_mag_v = self.__required([self.ke, self.v_perp, self.b_mag], write, force_recalc)
         self.__open()
+        found_val, gyrorad_v = self.__prepare('gyrorad', self.vv.shape[0:2], recalc)
 
-        def gyrorad_curried():
-            return gyrorad(ke_v[:], v_perp_v[:], b_mag_v[:], self.mm[:], self.qq[:])
+        if found_val:
+            self.__close()
+            return gyrorad_v
+        else:
+            if numba:
+                gyrorad_v = gyrorad(self.vv[:], self.bb[:], self.mm[:], self.qq[:])
+            else:
+                v_dot_b = np.sum(self.vv[:] * self.bb[:], axis=2)
+                b_dot_b = np.sum(self.bb[:]**2, axis=2)
+                scale_factor = np.divide(v_dot_b, b_dot_b, out=np.zeros_like(v_dot_b), where=b_dot_b != 0)
+                v_perp_v = np.linalg.norm(self.vv[:] - scale_factor[:, :, np.newaxis] * self.bb[:], axis=2)
+                b_mag = np.sqrt(b_dot_b)
+                gamma_v = 1.0 / np.sqrt(1.0 - np.sum(self.vv[:]**2, axis=2) / sp.c**2)
+                gyrorad_v = (2 * np.pi * gamma_v[:] * np.array(self.mm[:])[:, np.newaxis]) / (2 * np.pi * np.abs(np.array(self.qq[:])[:, np.newaxis])) * np.divide(v_perp_v[:], b_mag, out=np.zeros_like(v_perp_v), where=b_mag != 0)
 
-        if not write:
-            return gyrorad_curried()
-
-        gyrorad_v = self.__write('gyrorad', self.vv.shape[0:2], gyrorad_curried, force_recalc)
-        self.__close()
-
-        return gyrorad_v
+            self.dvqt['gyrorad'][:] = gyrorad_v
+            self.__close()
+            return gyrorad_v
 
 
-    def gyrofreq(self, write=True, force_recalc=False):
+    def gyrofreq(self, numba=False, recalc=False):
         '''
         Returns the gyrofreq (in 1/s) of each particle at each point along its trajectory.
 
         Parameters
         ----------
-        write (bool): Whether the quantity should be written to the file. Defaults to false.
-        force_recalc (bool): Whether the quantity should be recalculated (provided an array already exists on disc).
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
         gyrofreq_v (NxM numpy array): The gyrofrequency (in 1/s) of each particle at each timestep.
         '''
 
-        ke_v, b_mag_v = self.__required([self.ke, self.b_mag], write, force_recalc)
         self.__open()
+        found_val, gyrofreq_v = self.__prepare('gyrofreq', self.vv.shape[0:2], recalc)
 
-        def gyrofreq_curried():
-            return gyrofreq(ke_v[:], b_mag_v[:], self.mm[:], self.qq[:])
+        if found_val:
+            self.__close()
+            return gyrofreq_v
+        else:
+            if numba:
+                gyrofreq_v = gyrofreq(self.vv[:], self.bb[:], self.mm[:], self.qq[:])
+            else:
+                gamma_v = 1.0 / np.sqrt(1.0 - np.sum(self.vv[:]**2, axis=2) / sp.c**2)
+                gyrofreq_v = np.abs(np.array(self.qq[:])[:, np.newaxis]) * np.linalg.norm(self.bb[:], axis=2) / (2 * np.pi * gamma_v[:] * np.array(self.mm[:])[:, np.newaxis])
 
-        if not write:
-            return gyrofreq_curried()
-
-        gyrofreq_v = self.__write('gyrofreq', self.vv.shape[0:2], gyrofreq_curried, force_recalc)
-        self.__close()
-
-        return gyrofreq_v
+            self.dvqt['gyrofreq'][:] = gyrofreq_v
+            self.__close()
+            return gyrofreq_v
 
     
-    def eq_pitch_ang(self, b_field=None, unwrapped=False, write=True, force_recalc=False):
+    def eq_pitch_ang(self, b_field=None, unwrapped=False, recalc=False, recalc_all=False):
         '''
         Returns the equatorial pitch angle (in radians) of each particle at each point along its trajectory.
 
@@ -541,47 +687,165 @@ class Analyzer:
         ----------
         b_field(r, t): The magnetic field function (this is obtained through the currying functions in fields.py). This is required for checking adiabaticity.
         unwrapped (bool): Whether the equatorial pitch angle should be displayed from 0 to pi / 2 or unwrapped and displayed from 0 to pi.
-        write (bool): Whether the quantity should be written to the file. Defaults to false.
-        force_recalc (bool): Whether the quantity should be recalculated (provided an array already exists on disc).
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        recalc_all (bool): Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
 
         Returns
         -------
         eq_pitch_ang_v (NxM numpy array): The equatorial pitch angle (in radians) of each particle at each timestep.
         '''
 
-        pa_v, b_mag_v, gyrorad_v = self.__required([self.pitch_ang, self.b_mag, self.gyrorad], write=write, force_recalc=force_recalc)
+        recalc = recalc if recalc_all == False else True
+
+        pa_v, b_mag_v, gyrorad_v = self.__required([self.pitch_ang, self.b_mag, self.gyrorad], recalc_all)
         self.__open()
 
-        if 'eq_pitch_ang' in self.dvqt.keys() and force_recalc == False:
-            if self.dvqt['eq_pitch_ang'].shape == np.shape(pa_v[:]):
-                return self.dvqt['eq_pitch_ang'][:]
+        if b_field == None and ('eq_pitch_ang' not in self.dvqt.keys() or recalc == True):
+            raise NameError('Cannot calculate equatorial pitch angle without reference magnetic field with which to calculate adiabaticity.')
+
+        found_val, eq_pitch_ang_v = self.__prepare('eq_pitch_ang', self.vv.shape[0:2], recalc)
+
+        if found_val:
+            self.__close()
+            return eq_pitch_ang_v
         else:
-            if b_field == None:
-                raise NameError('Cannot calculate equatorial pitch angle without reference magnetic field with which to calculate adiabaticity.')
+            by_min_b = True
+            asym_eps = 4e-1
+            adb_eps = 1e-2
+            deg_eps = 3.5e-2
 
-        def eq_pitch_ang_curried():
-            return eq_pitch_angle(b_field, pa_v[:], b_mag_v[:], gyrorad_v[:], self.rr[:], unwrapped)
+            # Find the well-defined mirror points
+            mp_inds = np.diff(np.sign(pa_v - np.pi / 2), axis=1, append=0) != 0 # Get indices where the pitch angle crosses 90 degrees
+            mp_inds[:, -1] = False                                            # Remove values accidentally set to true due to our use of np.diff
 
-        if not write:
-            return eq_pitch_ang_curried()
+            # Get all contiguous slices between mirror points
+            masked = np.ma.array(b_mag_v, mask=mp_inds)           # Mask B at mirror points
+            slices = np.ma.notmasked_contiguous(masked, axis=1) # Find slices of B between mirror points
 
-        eq_pitch_ang_v = self.__write('eq_pitch_ang', self.vv.shape[0:2], eq_pitch_ang_curried, force_recalc)
-        self.__close()
+            # Mark crossing points as the points of weakest B in these contiguous slices
+            x_inds = np.zeros(np.shape(mp_inds)).astype(bool)
+            for i in range(self.num_particles):
+                for sl in slices[i]:
+                    if by_min_b:
+                        x_inds[i, np.argmin(b_mag_v[i][sl]) + sl.start] = True # Mark the minimum magnetic field value in each contiguous slice flanking a mirror point
+                    else:
+                        x_inds[i, np.argmax(np.abs(pa_v[i][sl] - np.pi / 2)) + sl.start] = True # Mark the minimum magnetic field value in each contiguous slice flanking a mirror point
 
-        return eq_pitch_ang_v
+                
+            # Adjacent crossing points should be spread symmetrically around a mirror point
+            # If the first pair of crossings does not exhibit this symmetry, remove the first point for removal
+            x_ind_0 = np.argmax(x_inds, axis=1)                     # Find the first crossing
+            x_inds_alt = np.copy(x_inds)                            # So we don't alter our initial x_inds
+            x_inds_alt[np.arange(self.num_particles), x_ind_0] = False # Set the first crossings to false
+            x_ind_1 = np.argmax(x_inds_alt, axis=1)                 # Find the second crossing
+            mp_ind_0 = np.argmax(mp_inds, axis=1)                   # Find the first mirror point
+            numer = ((x_ind_1 - mp_ind_0) - (mp_ind_0 - x_ind_0)).astype(float)
+            denom = ((x_ind_1 - mp_ind_0)).astype(float)
+            asymmetry_beg = np.abs(np.divide(numer, denom, out=np.zeros_like(numer), where=denom != 0))
+
+            # If the last pair of crossings does not exhibit this symmetry, mark the last point for removal
+            x_ind_minus_1 = np.shape(x_inds)[1] - np.argmax(np.flip(x_inds, axis=1), axis=1) - 1
+            x_inds_alt[np.arange(self.num_particles), x_ind_minus_1] = False
+            x_ind_minus_2 = np.shape(x_inds)[1] - np.argmax(np.flip(x_inds_alt, axis=1), axis=1) - 1
+            mp_ind_minus_1 = np.shape(mp_inds)[1] - np.argmax(np.flip(mp_inds, axis=1), axis=1) - 1
+            numer = ((x_ind_minus_1 - mp_ind_minus_1) - (mp_ind_minus_1 - x_ind_minus_2)).astype(float)
+            denom = ((mp_ind_minus_1 - x_ind_minus_2)).astype(float)
+            asymmetry_end = np.abs(np.divide(numer, denom, out=np.zeros_like(numer), where=denom != 0))
+                
+            # Remove each first crossing that occurs before any mirror point and contributes to asymmetry
+            to_change_beg = np.argwhere((asymmetry_beg > asym_eps) & (x_ind_0 < mp_ind_0))[:, 0]
+            x_inds[to_change_beg, x_ind_0[to_change_beg]] = False
+
+            # Remove each last crossing that occurs after all mirror points and contributes to asymmetry
+            to_change_end = np.argwhere((asymmetry_end > asym_eps) & (x_ind_minus_1 > mp_ind_minus_1))[:, 0]
+            x_inds[to_change_end, x_ind_minus_1[to_change_end]] = False
+
+            # Get (possible) mirror points initially missed (pitch angles between 89 and 91 degrees)
+            mp_within_1_deg = np.abs(pa_v - np.pi / 2) < deg_eps
+
+            # Add missed mirror points at the beginning
+            x_ind_0 = np.argmax(x_inds, axis=1)
+            first_mp = np.argmax(mp_within_1_deg, axis=1)
+            mp_before_x_ind_0 = np.argwhere((first_mp < x_ind_0) & (x_ind_0 < mp_ind_0))[:, 0]
+            mp_inds[mp_before_x_ind_0, first_mp[mp_before_x_ind_0]] = True
+
+            # Add missed mirror points at the end
+            x_ind_minus_1 = np.shape(x_inds)[1] - np.argmax(np.flip(x_inds, axis=1), axis=1) - 1
+            last_mp = np.shape(mp_inds)[1] - np.argmax(np.flip(mp_within_1_deg, axis=1), axis=1) - 1
+            mp_after_x_ind_minus_1 = np.argwhere((last_mp > x_ind_minus_1) & (x_ind_minus_1 > mp_ind_minus_1))[:, 0]
+            mp_inds[mp_after_x_ind_minus_1, last_mp[mp_after_x_ind_minus_1]] = True
+
+            # Add points at the beginning whose regions show adiabatic behavior
+            mp_ind_0 = np.argmax(mp_inds, axis=1) 
+            check_beg = np.argwhere((mp_ind_0 > x_ind_0) & (x_ind_0 > 0) & (b_mag_v[:, 0] != 0))
+
+            for i in check_beg:
+                R_c = flc(b_field, self.rr[i, 0][0], self.tt[0])
+                if gyrorad_v[i, 0] / R_c < adb_eps:
+                    mp_inds[i, 0] = True
+
+            # Add points at the end whose regions show adiabatic behavior
+            mp_ind_minus_1 = np.shape(mp_inds)[1] - np.argmax(np.flip(mp_inds, axis=1), axis=1) - 1
+            check_end = np.argwhere((mp_ind_minus_1 < x_ind_minus_1) & (x_ind_minus_1 < np.shape(x_inds)[1] - 1) & (b_mag_v[:, -1] != 0))
+                    
+            for i in check_end:
+                R_c = flc(b_field, self.rr[i, -1][0], self.tt[-1])
+                if gyrorad_v[i, -1] / R_c < adb_eps:
+                    mp_inds[i, -1] = True
+                    
+            eq_pitch_ang_v = np.zeros((self.num_particles, self.steps))
+
+            for i in range(np.shape(mp_inds)[0]):
+                duplicate_mps = np.argwhere(mp_inds[i, :])[:, 0][np.argwhere(np.abs(np.diff(np.argwhere(mp_inds[i, :])[:, 0])) <= 1)[:, 0]]
+                mp_inds[i, duplicate_mps] = False
+                
+                mp_ind = np.argwhere(mp_inds[i, :])[:, 0]
+                x_ind = np.argwhere(x_inds[i, :])[:, 0]
+                
+                x_ind_max = len(x_ind)
+                mp_ind_max = len(mp_ind)
+                
+                if x_ind_max == 0 or mp_ind_max == 0:
+                    continue
+                
+                display_x = np.copy(x_ind)
+                
+                if x_ind[0] <= mp_ind[0]:
+                    display_x[0] = 0
+                else:
+                    display_x = np.append(0, display_x)
+                if x_ind[-1] > mp_ind[-1]:
+                    display_x[-1] = self.steps - 1
+                else:
+                    display_x = np.append(display_x, self.steps - 1)
+                    
+                x_display_max = len(display_x)
+                    
+                b_mirror_avg = (b_mag_v[i, mp_ind] + b_mag_v[i, np.clip(mp_ind + 1, 0, self.steps - 1)]) * 0.5
+                pa_avg = (pa_v[i, mp_ind] + pa_v[i, np.clip(mp_ind + 1, 0, self.steps - 1)]) * 0.5
+                
+                for j in range(mp_ind_max):
+                    sin_eq_pa = np.sqrt(b_mag_v[i, x_ind[min(j, x_ind_max - 1)]] / (b_mirror_avg[j])) * np.sin(pa_avg[j])
+                    eq_pa = np.arcsin(min(sin_eq_pa, 1))
+                    eq_pitch_ang_v[i, display_x[j]:display_x[min(j + 1, len(display_x) - 1)] + 1] = eq_pa
 
 
-    def gca(self, b_field=None, max_iterations=20, tolerance=1e-3, write=True, force_recalc=False):
+            if unwrapped:
+                eq_pitch_ang_v[pa_v > np.pi / 2] = np.pi - eq_pitch_ang_v[pa_v > np.pi / 2] 
+
+            self.dvqt['eq_pitch_ang'][:] = eq_pitch_ang_v
+            self.__close()
+            return eq_pitch_ang_v
+
+
+    def gca(self, numba=False, recalc=False):
         '''
-        Returns the guiding center of each particle at each point along its trajectory.
+        Returns the guiding center of each particle along a history.
 
         Parameters
         ----------
-        b_field(r, t): The magnetic field function (this is obtained through the currying functions in fields.py).
-        max_iterations (int): The maximum number of iterations to perform at each particle's timestep. Defaults to 20.
-        tolerance (float): The preferred tolerance level. If this function does not reach the required tolerance level, the value with the lowest tolerance will be used. Defaults to 1e-3.
-        write (bool): Whether the quantity should be written to the file. Defaults to false.
-        force_recalc (bool): Whether the quantity should be recalculated (provided an array already exists on disc).
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
@@ -589,21 +853,283 @@ class Analyzer:
         '''
 
         self.__open()
+        found_val, gca_v = self.__prepare('gca', self.rr.shape, recalc)
 
-        if 'gca' in self.dvqt.keys() and force_recalc == False:
-            if self.dvqt['gca'].shape == self.rr.shape:
-                return self.dvqt['gca'][:]
+        if found_val:
+            self.__close()
+            return gca_v
         else:
-            if b_field == None:
-                raise NameError('Cannot calculate guiding center trajectories without reference magnetic field.')
+            if numba:
+                gca_v = gca(self.bb[:], self.rr[:], self.vv[:], self.mm[:], self.qq[:])
+            else:
+                b_dot_b = np.sum(self.bb[:]**2, axis=2)
+                b_cross_v = np.cross(self.bb[:], self.vv[:], axis=2)
 
-        def gca_curried():
-            return gca(b_field, self.rr[:], self.vv[:], self.mm[:], self.qq[:], max_iterations, tolerance)
+                v_dot_v = np.sum(self.vv[:]**2, axis=2)
+                gamma = 1.0 / np.sqrt(1.0 - v_dot_v / sp.c**2)
+                gamma_over_b_dot_b = np.divide(gamma, b_dot_b, out=np.zeros_like(gamma), where=b_dot_b != 0)
 
-        if not write:
-            return gca_curried()
+                gca_v = self.rr[:] - gamma_over_b_dot_b[:, :, np.newaxis] * np.asarray(self.mm[:])[:, np.newaxis, np.newaxis] * b_cross_v[:] / np.asarray(self.qq[:])[:, np.newaxis, np.newaxis]
 
-        gca_v = self.__write('gca', self.rr.shape, gca_curried, force_recalc)
-        self.__close()
+            self.dvqt['gca'][:] = gca_v
+            self.__close()
+            return gca_v
 
-        return gca_v
+
+    def moment_diff(self, delta_t=None, bins=100, numba=False, recalc=False, recalc_all=False):
+        '''
+        Returns the magnetic moment diffusion coefficient along a history.
+
+        Parameters
+        ----------
+        delta_t (float): The timestep over which diffusion will be calculated.
+        bins (int): The number of bins to use. Defaults to 100.
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        recalc_all (bool): Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
+
+        Returns
+        -------
+        bins_v (BINS numpy array): The bin labels.
+        moment_diff_v (BINSxM numpy array): The magnetic moment diffusion coefficient at each timestep.
+        '''
+
+        recalc = recalc if recalc_all == False else True
+
+        moment_v = self.__required(self.moment, recalc_all)
+        self.__open()
+
+        found_coef, moment_diff_v = self.__prepare('moment_diff_coef', (bins, self.steps), recalc)
+        found_bins, bins_v = self.__prepare('moment_diff_bins', (bins, ), recalc)
+
+        if delta_t == None and ('moment_diff_coef' not in self.dvqt.keys() or 'moment_diff_bins' not in self.dvqt.keys() or recalc == True):
+            raise NameError('Cannot calculate diffusion without a timestep.')
+
+        if found_coef and found_bins:
+            self.__close()
+            return bins_v, moment_diff_v
+        else:
+            if numba:
+                bins_v, moment_diff_v = diffusion(moment_v, self.tt[:], delta_t, bins)
+            else:
+                dt = np.abs(self.tt[1] - self.tt[0])
+                delta_t_ind = int(max(delta_t // dt, 1))
+                
+                end = np.roll(moment_v, -delta_t_ind, axis=1)
+                end[:, -delta_t_ind:] = moment_v[:, -delta_t_ind:]
+
+                ind_diff_coef = (end - moment_v)**2 / (2 * delta_t_ind * dt)
+                
+                max_val = np.amax(moment_v)
+                bin_width = max_val / (bins - 1)
+                binned_moment = (moment_v // bin_width).astype(int)
+                
+                unweighted_diff_coef = np.zeros((bins, self.steps))
+                weights = np.zeros((bins, self.steps))
+
+                for i in range(self.steps):
+                    np.add.at(unweighted_diff_coef[:, i], binned_moment[:, i], ind_diff_coef[:, i])
+                    np.add.at(weights[:, i], binned_moment[:, i], 1)
+                    
+                bins_v = np.linspace(0, max_val, bins)
+                moment_diff_v = np.divide(unweighted_diff_coef, weights, out=np.zeros_like(unweighted_diff_coef), where=weights != 0)
+            
+            self.dvqt['moment_diff_bins'][:] = bins_v
+            self.dvqt['moment_diff_coef'][:] = moment_diff_v
+            self.__close()
+            return bins_v, moment_diff_v
+
+
+    def eq_pitch_ang_diff(self, delta_t=None, bins=100, numba=False, recalc=False, recalc_all=False, b_field=None, unwrapped=False):
+        '''
+        Returns the equatorial pitch angle diffusion coefficient along a history.
+
+        Parameters
+        ----------
+        delta_t (float): The timestep over which diffusion will be calculated.
+        bins (int): The number of bins to use. Defaults to 100.
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        recalc_all (bool): Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
+        b_field(r, t): The magnetic field function (this is obtained through the currying functions in fields.py). This is only used if recalc_all is set to True.
+        unwrapped (bool): Whether the equatorial pitch angle should be displayed from 0 to pi / 2 or unwrapped and displayed from 0 to pi. This is only used if recalc_all is set to True.
+
+        Returns
+        -------
+        bins_v (BINS numpy array): The bin labels.
+        eq_pitch_ang_diff_v (BINSxM numpy array): The equatorial pitch angle diffusion coefficient at each timestep.
+        '''
+
+        recalc = recalc if recalc_all == False else True
+
+        eq_pitch_ang_v = self.__required(self.eq_pitch_ang, recalc_all, b_field)
+
+        self.__open()
+        found_coef, eq_pitch_ang_diff_v = self.__prepare('eq_pitch_ang_diff_coef', (bins, self.steps), recalc)
+        found_bins, bins_v = self.__prepare('eq_pitch_ang_diff_bins', (bins, ), recalc)
+
+        if delta_t == None and ('eq_pitch_ang_diff_coef' not in self.dvqt.keys() or 'eq_pitch_ang_diff_bins' not in self.dvqt.keys() or recalc == True):
+            raise NameError('Cannot calculate diffusion without a timestep.')
+
+        if found_coef and found_bins:
+            self.__close()
+            return bins_v, eq_pitch_ang_diff_v
+        else:
+            if numba:
+                bins_v, eq_pitch_ang_diff_v = diffusion(eq_pitch_ang_v, self.tt[:], delta_t, bins)
+            else:
+                dt = np.abs(self.tt[1] - self.tt[0])
+                delta_t_ind = int(max(delta_t // dt, 1))
+                
+                end = np.roll(eq_pitch_ang_v, -delta_t_ind, axis=1)
+                end[:, -delta_t_ind:] = eq_pitch_ang_v[:, -delta_t_ind:]
+
+                ind_diff_coef = (end - eq_pitch_ang_v)**2 / (2 * delta_t_ind * dt)
+                
+                max_val = np.amax(eq_pitch_ang_v)
+                bin_width = max_val / (bins - 1)
+                binned_eq_pitch_ang = (eq_pitch_ang_v // bin_width).astype(int)
+                
+                unweighted_diff_coef = np.zeros((bins, self.steps))
+                weights = np.zeros((bins, self.steps))
+
+                for i in range(self.steps):
+                    np.add.at(unweighted_diff_coef[:, i], binned_eq_pitch_ang[:, i], ind_diff_coef[:, i])
+                    np.add.at(weights[:, i], binned_eq_pitch_ang[:, i], 1)
+                    
+                bins_v = np.linspace(0, max_val, bins)
+                eq_pitch_ang_diff_v = np.divide(unweighted_diff_coef, weights, out=np.zeros_like(unweighted_diff_coef), where=weights != 0)
+            
+            self.dvqt['eq_pitch_ang_diff_bins'][:] = bins_v
+            self.dvqt['eq_pitch_ang_diff_coef'][:] = eq_pitch_ang_diff_v
+            self.__close()
+            return bins_v, eq_pitch_ang_diff_v
+
+
+    def moment_trans(self, delta_t=None, bins=100, numba=False, recalc=False, recalc_all=False):
+        '''
+        Returns the magnetic moment transport coefficient along a history.
+
+        Parameters
+        ----------
+        delta_t (float): The timestep over which transport will be calculated.
+        bins (int): The number of bins to use. Defaults to 100.
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        recalc_all (bool): Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
+
+        Returns
+        -------
+        bins_v (BINS numpy array): The bin labels.
+        moment_trans_v (BINSxM numpy array): The magnetic moment transport coefficient at each timestep.
+        '''
+
+        recalc = recalc if recalc_all == False else True
+
+        moment_v = self.__required(self.moment, recalc_all)
+
+        self.__open()
+        found_coef, moment_trans_v = self.__prepare('moment_trans_coef', (bins, self.steps), recalc)
+        found_bins, bins_v = self.__prepare('moment_trans_bins', (bins, ), recalc)
+
+        if delta_t == None and ('moment_trans_coef' not in self.dvqt.keys() or 'moment_trans_bins' not in self.dvqt.keys() or recalc == True):
+            raise NameError('Cannot calculate transport without a timestep.')
+
+        if found_coef and found_bins:
+            self.__close()
+            return bins_v, moment_trans_v
+        else:
+            if numba:
+                bins_v, moment_trans_v = transport(moment_v, self.tt[:], delta_t, bins)
+            else:
+                dt = np.abs(self.tt[1] - self.tt[0])
+                delta_t_ind = int(max(delta_t // dt, 1))
+                
+                end = np.roll(moment_v, -delta_t_ind, axis=1)
+                end[:, -delta_t_ind:] = moment_v[:, -delta_t_ind:]
+
+                ind_trans_coef = end - moment_v
+                
+                max_val = np.amax(moment_v)
+                bin_width = max_val / (bins - 1)
+                binned_moment = (moment_v // bin_width).astype(int)
+                
+                unweighted_trans_coef = np.zeros((bins, self.steps))
+                weights = np.zeros((bins, self.steps))
+
+                for i in range(self.steps):
+                    np.add.at(unweighted_trans_coef[:, i], binned_moment[:, i], ind_trans_coef[:, i])
+                    np.add.at(weights[:, i], binned_moment[:, i], 1)
+                    
+                bins_v = np.linspace(0, max_val, bins)
+                moment_trans_v = np.divide(unweighted_trans_coef, weights, out=np.zeros_like(unweighted_trans_coef), where=weights != 0)
+            
+            self.dvqt['moment_trans_bins'][:] = bins_v
+            self.dvqt['moment_trans_coef'][:] = moment_trans_v
+            self.__close()
+            return bins_v, moment_trans_v
+
+
+    def eq_pitch_ang_trans(self, delta_t=None, bins=100, numba=False, recalc=False, recalc_all=False, b_field=None):
+        '''
+        Returns the equatorial pitch angle transport coefficient along a history.
+
+        Parameters
+        ----------
+        delta_t (float): The timestep over which transport will be calculated.
+        bins (int): The number of bins to use. Defaults to 100.
+        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        recalc_all (bool): Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
+        b_field(r, t): The magnetic field function (this is obtained through the currying functions in fields.py). This is only used if recalc_all is set to True.
+
+        Returns
+        -------
+        bins_v (BINS numpy array): The bin labels.
+        eq_pitch_ang_trans_v (BINSxM numpy array): The equatorial pitch angle transport coefficient at each timestep.
+        '''
+
+        recalc = recalc if recalc_all == False else True
+
+        eq_pitch_ang_v = self.__required(self.moment, recalc_all, b_field)
+
+        self.__open()
+        found_coef, eq_pitch_ang_trans_v = self.__prepare('eq_pitch_ang_trans_coef', (bins, self.steps), recalc)
+        found_bins, bins_v = self.__prepare('eq_pitch_ang_trans_bins', (bins, ), recalc)
+
+        if delta_t == None and ('eq_pitch_ang_trans_coef' not in self.dvqt.keys() or 'eq_pitch_ang_trans_bins' not in self.dvqt.keys() or recalc == True):
+            raise NameError('Cannot calculate transport without a timestep.')
+
+        if found_coef and found_bins:
+            self.__close()
+            return bins_v, eq_pitch_ang_trans_v
+        else:
+            if numba:
+                bins_v, eq_pitch_ang_trans_v = transport(eq_pitch_ang_v, self.tt[:], delta_t, bins)
+            else:
+                dt = np.abs(self.tt[1] - self.tt[0])
+                delta_t_ind = int(max(delta_t // dt, 1))
+                
+                end = np.roll(eq_pitch_ang_v, -delta_t_ind, axis=1)
+                end[:, -delta_t_ind:] = eq_pitch_ang_v[:, -delta_t_ind:]
+
+                ind_trans_coef = end - eq_pitch_ang_v
+                
+                max_val = np.amax(eq_pitch_ang_v)
+                bin_width = max_val / (bins - 1)
+                binned_eq_pitch_ang = (eq_pitch_ang_v // bin_width).astype(int)
+                
+                unweighted_trans_coef = np.zeros((bins, self.steps))
+                weights = np.zeros((bins, self.steps))
+
+                for i in range(self.steps):
+                    np.add.at(unweighted_trans_coef[:, i], binned_eq_pitch_ang[:, i], ind_trans_coef[:, i])
+                    np.add.at(weights[:, i], binned_eq_pitch_ang[:, i], 1)
+                    
+                bins_v = np.linspace(0, max_val, bins)
+                eq_pitch_ang_trans_v = np.divide(unweighted_trans_coef, weights, out=np.zeros_like(unweighted_trans_coef), where=weights != 0)
+            
+            self.dvqt['eq_pitch_ang_trans_bins'][:] = bins_v
+            self.dvqt['eq_pitch_ang_trans_coef'][:] = eq_pitch_ang_trans_v
+            self.__close()
+            return bins_v, eq_pitch_ang_trans_v

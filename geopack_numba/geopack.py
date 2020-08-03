@@ -622,6 +622,7 @@ def sun(ut):
     return gmst,l,srasn,sdec,e
 
 
+@jit
 def gswgsm(p1,p2,p3, j):
     """
     Converts gsm to gsw coordinates or vice versa.
@@ -649,6 +650,7 @@ def gswgsm(p1,p2,p3, j):
         return xgsw,ygsw,zgsw
 
 
+@jit
 def geomag(p1,p2,p3, j):
     """
     Converts geographic (geo) to dipole (mag) coordinates or vice versa.
@@ -681,6 +683,7 @@ def geomag(p1,p2,p3, j):
         zgeo = zmag*ct0-xmag*st0
         return xgeo,ygeo,zgeo
 
+@jit
 def geigeo(p1,p2,p3, j):
     """
     Converts equatorial inertial (gei) to geographical (geo) coords or vice versa.
@@ -713,6 +716,7 @@ def geigeo(p1,p2,p3, j):
         zgei = zgeo
         return xgei,ygei,zgei
 
+@jit
 def magsm(p1,p2,p3, j):
     """
     Converts dipole (mag) to solar magnetic (sm) coordinates or vice versa
@@ -745,6 +749,7 @@ def magsm(p1,p2,p3, j):
         zmag = zsm
         return xmag,ymag,zmag
 
+@jit
 def gsmgse(p1,p2,p3, j):
     """
     converts geocentric solar magnetospheric (gsm) coords to solar ecliptic (gse) ones or vice versa.
@@ -773,6 +778,7 @@ def gsmgse(p1,p2,p3, j):
         zgsm = zgse*chi-ygse*shi
         return xgsm,ygsm,zgsm
 
+@jit
 def smgsm(p1,p2,p3, j):
     """
     Converts solar magnetic (sm) to geocentric solar magnetospheric (gsm) coordinates or vice versa.
@@ -839,6 +845,7 @@ def geogsm(p1,p2,p3, j):
         return xgeo,ygeo,zgeo
 
 
+@jit
 def geodgeo(p1,p2, j):
     """
     This subroutine (1) converts vertical local height (altitude) h and geodetic
@@ -969,6 +976,7 @@ def bspcar(theta, phi, br, btheta, bphi):
 
     return bx, by, bz
 
+@jit
 def bcarsp(x,y,z,bx,by,bz):
     """
     Calculates spherical field components from those in cartesian system
@@ -1002,6 +1010,7 @@ def bcarsp(x,y,z,bx,by,bz):
     return br,btheta,bphi
 
 
+@jit
 def call_external_model(exname, par, ps, x,y,z):
     if exname == 't89':
         return t89.t89(par, ps, x, y, z)
@@ -1014,6 +1023,7 @@ def call_external_model(exname, par, ps, x,y,z):
     else:
         raise ValueError
 
+@jit
 def call_internal_model(inname, x,y,z):
     if inname == 'dipole':
         return dip(x,y,z)
@@ -1217,6 +1227,7 @@ def trace(xi, yi, zi, dir, rlim=10, r0=1, parmod=2, exname='t89', inname='igrf',
 
     return x,y,z, xx,yy,zz
 
+@jit
 def shuetal_mgnp(xn_pd,vel,bzimf,xgsm,ygsm,zgsm):
     """
     For any point of space with coordinates (xgsm,ygsm,zgsm) and specified conditions
@@ -1306,6 +1317,7 @@ def shuetal_mgnp(xn_pd,vel,bzimf,xgsm,ygsm,zgsm):
 
     return xmgnp,ymgnp,zmgnp, dist, id
 
+@jit
 def t96_mgnp(xn_pd,vel,xgsm,ygsm,zgsm):
     """
     For any point of space with given coordinates (xgsm,ygsm,zgsm), this subroutine defines

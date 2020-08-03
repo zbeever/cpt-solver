@@ -1,11 +1,12 @@
 import numpy as np
-from utils import *
-import scipy.constants as sp
+from scipy import constants as sp
+from numba import njit, jit
+
 from geopack_numba import geopack as gp
 from geopack_numba import t89 as ext_t89
-from numba import njit, jit
-from matplotlib import pyplot as plt
+from geopack_numba import t96 as ext_t96
 
+from utils import inv_Re
 
 def zero_field():
     '''
@@ -17,7 +18,8 @@ def zero_field():
 
     Returns
     -------
-    field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
     @njit
@@ -33,12 +35,16 @@ def uniform_field(strength, axis):
 
     Parameters
     ----------
-    strength (float): The strength of the field (in T or V/m).
-    axis (3x1 numpy array): Direction along which the field lines point.
+    strength : float
+        The strength of the field (in T or V/m).
+
+    axis : float[3]
+        Direction along which the field lines point.
 
     Returns
     -------
-    field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
     norm_axis = axis / np.linalg.norm(axis)
@@ -57,13 +63,19 @@ def harris_cs_model(b0x, sigma, L_cs):
 
     Parameters
     ----------
-    b0x (float): The minimum value of the field.
-    sigma (float): A parameter marking the perturbation strength of the current sheet. b0x * sigma is the radius of curvature of the field in the x-y plane.
-    L_cs (float): The current sheet thickness.
+    b0x : float
+        The minimum value of the field (in T).
+
+    sigma : float
+        A parameter marking the perturbation strength of the current sheet. b0x * sigma is the radius of curvature of the field in the x-y plane.
+
+    L_cs : float
+        The current sheet thickness (in m).
 
     Returns
     -------
-    field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
     @njit
@@ -79,12 +91,16 @@ def magnetic_dipole(current, signed_area):
 
     Parameters
     ----------
-    current (float): The value of the current in amperes.
-    signed_area (3x1 numpy array): Normal vector to the plane of the loop whose length is numerically equal to the loop's enclosed area (in m^2).
+    current : float
+        The value of the current (in A).
+
+    signed_area : float[3]
+        Normal vector to the plane of the loop whose length is numerically equal to the loop's enclosed area (in m^2).
 
     Returns
     -------
-    field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
     # Magnetic moment
@@ -107,12 +123,16 @@ def electric_dipole(charge, displacement):
 
     Parameters
     ----------
-    charge (float): The magnitude of one of the charges in C.
-    displacement (3x1 numpy array): The vector pointing from the negative charge to the positive one in m.
+    charge : float
+        The magnitude of one of the charges (in C).
+
+    displacement : float[3]
+        The vector pointing from the negative charge to the positive one (in m).
 
     Returns
     -------
-    field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
     # Dipole moment
@@ -139,7 +159,8 @@ def earth_dipole_axis_aligned():
 
     Returns
     -------
-    field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
     # Earth's magnetic moment with constants absorbed.
@@ -165,11 +186,13 @@ def earth_dipole(t0=4.01172e7):
 
     Parameters
     ----------
-    t0 (float): The universal time (in seconds). Defaults to a value where the dipole tilt is approximately 0.
+    t0 : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to a time where the dipole tilt is approximately 0 degrees.
 
     Returns
     -------
-    field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
     gp.recalc(t0)
@@ -193,11 +216,13 @@ def igrf(t0=4.01172e7):
 
     Parameters
     ----------
-    t0 (float): The universal time (in seconds). Defaults to a value where the dipole tilt is approximately 0.
+    t0 : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to a time where the dipole tilt is approximately 0 degrees.
 
     Returns
     -------
-    field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
     gp.recalc(t0)
@@ -221,13 +246,19 @@ def t89(Kp, t0=4.0118e7, sw_v=np.array([-400., 0., 0.])):
 
     Parameters
     ----------
-    Kp (int): A mapping to the Kp geomagnetic activity index. Acceptable values range from 1 to 7, mapping to values between 0 and 6+, inclusive.
-    t0 (float): The universal time (in seconds). Defaults to a value where the dipole tilt is approximately 0.
-    sw_v (3x1 numpy array): The solar wind velocity vector in GSE coordinates. Defaults to v = [-400, 0, 0]
+    Kp : int
+        A mapping to the Kp geomagnetic activity index. Acceptable values range from 1 to 7, mapping to values between 0 and 6+, inclusive.
+
+    t0 : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to a time where the dipole tilt is approximately 0 degrees.
+
+    sw_v : float[3], optional
+        The solar wind velocity vector in GSE coordinates. Defaults to v = [-400, 0, 0]
 
     Returns
     -------
-    field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
     ps = gp.recalc(t0, sw_v[0], sw_v[1], sw_v[2])
@@ -252,20 +283,34 @@ def t96(par, t0=4.0118e7):
 
     Parameters
     ----------
-    par (10 list): A 10-element list containing the model parameters.
-    par[0]={Pdyn} (float): The solar wind dynamic pressure in nPa. Typically in the range of 1 to 6 nPa.
-    par[1]={Dst} (float): The disturbance storm-time index, a measure of magnetic activity connected to the ring current. Values are measured in nT. A value less than -50 nT indicates high geomagnetic activity. 
-    par[2]={ByIMF} (float): The y component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
-    par[3]={BzIMF} (float): The z component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
-    par[4-9]: Not used
-    t0 (float): The universal time (in seconds). Defaults to a value where the dipole tilt is approximately 0.
+    par : float[10]
+        A 10-element list containing the model parameters. These are
+
+        par[0] (Pdyn) : float
+            The solar wind dynamic pressure in nPa. Typically in the range of 1 to 6 nPa.
+
+        par[1] (Dst) : float
+            The disturbance storm-time index, a measure of magnetic activity connected to the ring current. Values
+            are measured in nT. A value less than -50 nT indicates high geomagnetic activity. 
+
+        par[2] (ByIMF) : float
+            The y component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
+
+        par[3] (BzIMF) : float
+            The z component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
+
+        par[4:9] : float[6]
+            Not used.
+
+    t0 : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to a time where the dipole tilt is approximately 0 degrees.
 
     Returns
     -------
-    field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
-    @jit
     def field(r, t=0., sw_v=np.array([-400., 0., 0.])):
         x_gsm = r[0] * inv_Re
         y_gsm = r[1] * inv_Re
@@ -273,7 +318,7 @@ def t96(par, t0=4.0118e7):
         
         ps = gp.recalc(t + t0, sw_v[0], sw_v[1], sw_v[2])
         field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm))
-        field_ext = np.asarray(gp.t96.t96(par, ps, x_gsm, y_gsm, z_gsm))
+        field_ext = np.asarray(ext_t96.t96(par, ps, x_gsm, y_gsm, z_gsm))
         
         return (field_int + field_ext) * 1e-9
 
@@ -286,19 +331,41 @@ def t01(par, t0=4.0118e7):
 
     Parameters
     ----------
-    par (10 list): A 10-element list containing the model parameters.
-    par[0]={Pdyn} (float): The solar wind dynamic pressure in nPa. Typically in the range of 1 to 6 nPa.
-    par[1]={Dst} (float): The disturbance storm-time index, a measure of magnetic activity connected to the ring current. Values are measured in nT. A value less than -50 nT indicates high geomagnetic activity. 
-    par[2]={ByIMF} (float): The y component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
-    par[3]={BzIMF} (float): The z component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
-    par[4]={G1} (float): A parameter capturing the cross-tail current's dependence on the solar wind. Mathematically, it is defined as the average of V*h(B_perp)*sin^3(theta/2) where V is the solar wind speed, B_perp is the transverse IMF component, theta is the IMF's clock angle, and h is a function that behaves as B_perp^2 for common values of the IMF. A typical value is 6.
-    par[5]={G2} (float): A parameter capturing the earthward / tailward shift of the tail current, defined as the average of a*V*Bs, where V is the solar wind speed, Bs is the southward component of the IMF (|Bz| for Bz < 0, 0 otherwise) and a = 0.005. A typical value is 10.
-    par[6-9]: Not used
-    t0 (float): The universal time (in seconds). Defaults to a value where the dipole tilt is approximately 0.
+    par : float[10]
+        A 10-element list containing the model parameters. These are
+
+        par[0] (Pdyn) : float
+            The solar wind dynamic pressure in nPa. Typically in the range of 1 to 6 nPa.
+
+        par[1] (Dst) : float
+            The disturbance storm-time index, a measure of magnetic activity connected to the ring current. Values are measured in nT. A value
+            less than -50 nT indicates high geomagnetic activity. 
+
+        par[2] (ByIMF) : float
+            The y component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
+
+        par[3] (BzIMF) : float
+            The z component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
+
+        par[4] (G1) : float
+            A parameter capturing the cross-tail current's dependence on the solar wind. Mathematically, it is defined as the average
+            of V*h(B_perp)*sin^3(theta/2) where V is the solar wind speed, B_perp is the transverse IMF component, theta is the IMF's
+            clock angle, and h is a function that behaves as B_perp^2 for common values of the IMF. A typical value is 6.
+
+        par[5] (G2) : float
+            A parameter capturing the earthward / tailward shift of the tail current, defined as the average of a*V*Bs, where V is the
+            solar wind speed, Bs is the southward component of the IMF (|Bz| for Bz < 0, 0 otherwise) and a = 0.005. A typical value is 10.
+
+        par[6:9] : float[4]
+            Not used.
+
+    t0 : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to a time where the dipole tilt is approximately 0 degrees.
 
     Returns
     -------
-    field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
     @jit
@@ -322,22 +389,47 @@ def t04(par, t0=4.01e7):
 
     Parameters
     ----------
-    par (10 list): A 10-element list containing the model parameters.
-    par[0]={Pdyn} (float): The solar wind dynamic pressure in nPa. Typically in the range of 1 to 6 nPa.
-    par[1]={Dst} (float): The disturbance storm-time index, a measure of magnetic activity connected to the ring current. Values are measured in nT. A value less than -50 nT indicates high geomagnetic activity. 
-    par[2]={ByIMF} (float): The y component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
-    par[3]={BzIMF} (float): The z component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
-    par[4]={Wt1} (float): Driving parameter of the inner part of the tail field. Saturates at 0.71 +- 0.05. Peak estimate: 4 to 12.
-    par[5]={Wt2} (float): Driving parameter of the outer part of the tail field. Saturates at 0.39 +- 0.05. Peak estimate: 3 to 7.
-    par[6]={Ws} (float): Driving parameter of the axially symmetric part of the ring current. Saturates at 3.3 +- 0.5. Peak estimate: 4 to 15.
-    par[7]={Wp} (float): Driving parameter of the partial ring current field. Saturates at 75 +- 30. Peak estimate 10 to 50.
-    par[8]={Wb1} (float): Driving parameter of the principle mode of the Birkeland current. Saturates at 6.4 +- 1.0. Peak estimate 7 to 30.
-    par[9]={Wb2} (float): Driving parameter of the secondary mode of the Birkeland current. Saturates at 0.88 +- 0.06. Peak estimate 20 to 100.
-    t0 (float): The universal time (in seconds). Defaults to a value where the dipole tilt is approximately 0.
+    par : float[10]
+        A 10-element list containing the model parameters. These are
+
+        par[0] (Pdyn) : float
+            The solar wind dynamic pressure in nPa. Typically in the range of 1 to 6 nPa.
+
+        par[1] (Dst) : float
+            The disturbance storm-time index, a measure of magnetic activity connected to the ring current. Values are measured in nT. A value
+            less than -50 nT indicates high geomagnetic activity. 
+
+        par[2] (ByIMF) : float
+            The y component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
+
+        par[3] (BzIMF) : float
+            The z component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
+
+        par[4] (Wt1) : float
+            Driving parameter of the inner part of the tail field. Saturates at 0.71 +- 0.05. Peak estimate: 4 to 12.
+
+        par[5] (Wt2) : float
+            Driving parameter of the outer part of the tail field. Saturates at 0.39 +- 0.05. Peak estimate: 3 to 7.
+
+        par[6] (Ws): float
+            Driving parameter of the axially symmetric part of the ring current. Saturates at 3.3 +- 0.5. Peak estimate: 4 to 15.
+
+        par[7] (Wp): float
+            Driving parameter of the partial ring current field. Saturates at 75 +- 30. Peak estimate 10 to 50.
+
+        par[8] (Wb1) : float
+            Driving parameter of the principle mode of the Birkeland current. Saturates at 6.4 +- 1.0. Peak estimate 7 to 30.
+
+        par[9] (Wb2) : float
+            Driving parameter of the secondary mode of the Birkeland current. Saturates at 0.88 +- 0.06. Peak estimate 20 to 100.
+
+    t0 : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to a time where the dipole tilt is approximately 0 degrees.
 
     Returns
     -------
-    field(r, t=0.): Function with a position (numpy array) and time (float) argument that returns the field at that spacetime coordinate.
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
     @jit

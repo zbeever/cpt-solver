@@ -8,11 +8,13 @@ def delta(val):
 
     Parameters
     ----------
-    val (any): The value to return.
+    val : any
+        The value to return.
 
     Returns
     -------
-    sample(): Function with no argument that returns 1 sample when called.
+    sample() : function
+        Function with no arguments that returns a sample from the distribution.
     '''
 
     def sample():
@@ -27,13 +29,19 @@ def uniform(min_val, max_val, dims=1):
 
     Parameters
     ----------
-    min_val (float): The minimum value.
-    max_val (float): The maximum value.
-    dims (int): The number of dimensions spanned by the distribution. Defaults to 1.
+    min_val : float
+        The minimum value.
+
+    max_val : float
+        The maximum value.
+
+    dims : int, optional
+        The number of dimensions spanned by the distribution. Defaults to 1.
 
     Returns
     -------
-    sample(): Function with no argument that returns 1 sample when called.
+    sample() : function
+        Function with no arguments that returns a sample from the distribution.
     '''
 
     def sample():
@@ -51,13 +59,19 @@ def normal(mean, std_dev, dims=1):
 
     Parameters
     ----------
-    mean (float): The mean.
-    std_dev (float): The standard deviations.
-    dims (int): The number of dimensions spanned by the distribution. Defaults to 1.
+    mean : float
+        The mean.
+
+    std_dev : float
+        The standard deviation.
+
+    dims : int, optional
+        The number of dimensions spanned by the distribution. Defaults to 1.
 
     Returns
     -------
-    sample(): Function with no argument that returns 1 sample when called.
+    sample() : function
+        Function with no arguments that returns a sample from the distribution.
     '''
 
     def sample():
@@ -72,13 +86,19 @@ def uniform_oom(min_oom, max_oom, dims=1):
 
     Parameters
     ----------
-    min_oom (float): The minimum order of magnitude.
-    max_oom (float): The maximum order of magnitude.
-    dims (int): The number of dimensions spanned by the distribution. Defaults to 1.
+    min_oom : float
+        The minimum order of magnitude.
+
+    max_oom : float
+        The maximum order of magnitude.
+
+    dims : int, optional
+        The number of dimensions spanned by the distribution. Defaults to 1.
 
     Returns
     -------
-    sample(): Function with no argument that returns 1 sample when called.
+    sample() : function
+        Function with no arguments that returns a sample from the distribution.
     '''
 
     def sample():
@@ -93,12 +113,16 @@ def uniform_sphere(radius, offset=np.zeros(3)):
 
     Parameters
     ----------
-    radius (float): The radius of the sphere.
-    offset (3x1 numpy array): The center of the sphere. Defaults to the zero vector.
+    radius : float
+        The radius of the sphere.
+
+    offset, optional : float[3]
+        The center of the sphere. Defaults to the zero vector.
 
     Returns
     -------
-    sample(): Function with no argument that returns 1 sample when called.
+    sample() : function
+        Function with no arguments that returns a sample from the distribution.
     '''
 
     def sample():
@@ -117,13 +141,19 @@ def uniform_circle(radius, normal=np.array([0., 0., 1.]), offset=np.zeros(3)):
 
     Parameters
     ----------
-    radius (float): The radius of the circle.
-    normal (3x1 numpy array): The normal to the plane of the circle. Defaults to the positive z axis unit vector.
-    offset (3x1 numpy array): The center of the circle. Defaults to the zero vector.
+    radius : float
+        The radius of the circle.
+
+    normal : float[3], optional
+        The normal to the plane of the circle. Defaults to the positive z axis unit vector.
+
+    offset : float[3], optional
+        The center of the circle. Defaults to the zero vector.
 
     Returns
     -------
-    sample(): Function with no argument that returns 1 sample when called.
+    sample() : function
+        Function with no arguments that returns a sample from the distribution.
     '''
 
     # The zenith and azimuthal angles the normal vector makes with respect to the default Cartesian coordinate system.
@@ -154,13 +184,19 @@ def uniform_disc(radius, normal=np.array([0., 0., 1.]), offset=np.zeros(3)):
 
     Parameters
     ----------
-    radius (float): The radius of the disc.
-    normal (3x1 numpy array): The normal to the plane of the disc. Defaults to the positive z axis unit vector.
-    offset (3x1 numpy array): The center of the disc. Defaults to the zero vector.
+    radius : float
+        The radius of the disc.
+
+    normal : float[3], optional
+        The normal to the plane of the circle. Defaults to the positive z axis unit vector.
+
+    offset : float[3], optional
+        The center of the circle. Defaults to the zero vector.
 
     Returns
     -------
-    sample(): Function with no argument that returns 1 sample when called.
+    sample() : function
+        Function with no arguments that returns a sample from the distribution.
     '''
 
     # The zenith and azimuthal angles the normal vector makes with respect to the default Cartesian coordinate system.
@@ -192,14 +228,22 @@ def uniform_ring(inner_radius, outer_radius, normal=np.array([0., 0., 1.]), offs
 
     Parameters
     ----------
-    inner_radius (float): The inner radius of the ring.
-    outer_radius (float): The outer radius of the ring.
-    normal (3x1 numpy array): The normal to the plane of the ring. Defaults to the positive z axis unit vector.
-    offset (3x1 numpy array): The center of the ring. Defaults to the zero vector.
+    inner_radius : float
+        The inner radius of the ring.
+
+    outer_radius : float
+        The outer radius of the ring.
+
+    normal : float[3], optional
+        The normal to the plane of the circle. Defaults to the positive z axis unit vector.
+
+    offset : float[3], optional
+        The center of the circle. Defaults to the zero vector.
 
     Returns
     -------
-    sample(): Function with no argument that returns 1 sample when called.
+    sample() : function
+        Function with no arguments that returns a sample from the distribution.
     '''
 
     # The zenith and azimuthal angles the normal vector makes with respect to the default Cartesian coordinate system.
@@ -231,16 +275,28 @@ def uniform_partial_ring(inner_radius, outer_radius, inner_angle, outer_angle, n
 
     Parameters
     ----------
-    inner_radius (float): The inner radius of the partial ring.
-    outer_radius (float): The outer radius of the partial ring.
-    inner_angle (float): The smallest angle of the partial ring.
-    outer_angle (float): The largest angle of the partial ring.
-    normal (3x1 numpy array): The normal to the plane of the partial ring. Defaults to the positive z axis unit vector.
-    offset (3x1 numpy array): The center of the partial ring. Defaults to the zero vector.
+    inner_radius : float
+        The inner radius of the partial ring.
+
+    outer_radius : float
+        The outer radius of the partial ring.
+
+    inner_angle : float
+        The smallest angle of the partial ring.
+
+    outer_angle : float
+        The largest angle of the partial ring.
+
+    normal : float[3], optional
+        The normal to the plane of the circle. Defaults to the positive z axis unit vector.
+
+    offset : float[3], optional
+        The center of the circle. Defaults to the zero vector.
 
     Returns
     -------
-    sample(): Function with no argument that returns 1 sample when called.
+    sample() : function
+        Function with no arguments that returns a sample from the distribution.
     '''
 
     # The zenith and azimuthal angles the normal vector makes with respect to the default Cartesian coordinate system.
@@ -272,14 +328,22 @@ def weighted_cosine(a, b, k, dims=1):
 
     Parameters
     ----------
-    a (float): The smallest value.
-    b (float): The greatest value.
-    k (float): The power to raise the cosine function with.
-    dims (int): The number of dimensions spanned by the distribution. Defaults to 1.
+    a : float
+        The smallest value.
+
+    b : float
+        The greatest value.
+
+    k : float
+        The power to raise the cosine function with.
+
+    dims : int, optional
+        The number of dimensions spanned by the distribution. Defaults to 1.
 
     Returns
     -------
-    sample(): Function with no argument that returns 1 sample when called.
+    sample() : function
+        Function with no arguments that returns a sample from the distribution.
     '''
 
     # Proportional PDF.

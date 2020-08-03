@@ -1,17 +1,12 @@
 import numpy as np
-from numba import njit
 import scipy.constants as sp
+from numba import njit, prange
+
 from matplotlib.gridspec import GridSpec
 from matplotlib import pyplot as plt
 
-axis_num = {
-            'x': 0,
-            'y': 1,
-            'z': 2
-           }
-
-Re = 6.371e6      # m
-inv_Re = 1. / Re  # m^-1
+Re = 6.371e6     # m
+inv_Re = 1. / Re # m^-1
 
 
 def format_bytes(size):
@@ -20,12 +15,16 @@ def format_bytes(size):
 
     Parameters
     ----------
-    size (int): Number of bytes.
+    size : int
+        Number of bytes.
 
     Returns
     -------
-    size (float): Rescaled size of the data.
-    power_label (string): The associated unit.
+    size : float
+        Rescaled size of the data.
+
+    power_label : string
+        The associated unit (e.g. megabyte).
     '''
 
     power = 2**10
@@ -46,11 +45,13 @@ def J_to_eV(E):
 
     Parameters
     ----------
-    E (float): An energy (in joules).
+    E : float
+        An energy (in joules).
 
     Returns
     -------
-    E (float): An energy (in electronvolts).
+    E : float
+        An energy (in electronvolts).
     '''
 
     return 1.0 / sp.e * E
@@ -63,11 +64,13 @@ def eV_to_J(E):
 
     Parameters
     ----------
-    E (float): An energy (in electronvolts).
+    E : float
+        An energy (in electronvolts).
 
     Returns
     -------
-    E (float): An energy (in joules).
+    E : float
+        An energy (in joules).
     '''
 
     return sp.e * E
@@ -81,29 +84,62 @@ def dot(v, w):
 
     Parameters
     ----------
-    v (3x1 numpy array): First vector.
-    w (3x1 numpy array): Second vector.
+    v : float[3]
+        First vector.
+
+    w : float[3]
+        Second vector.
 
     Returns
     -------
-    v_dot_w (float): The dot product of v and w. 
+    v_dot_w : float
+        The dot product of v and w. 
     '''
 
     return v[0] * w[0] + v[1] * w[1] + v[2] * w[2]
 
 
 @njit
-def gamma(v):
+def cross(v, w):
     '''
-    Calculates the standard relativistic factor from a SI velocity vector.
+    Crosses two vectors. The reason for this (over np.cross) is to avoid the slowdown that comes
+    when using np.dot in a Numba function on vectors whose components are not contiguous in memory.
 
     Parameters
     ----------
-    v (3x1 numpy array): The velocity vector (in m/s).
+    v : float[3]
+        First vector.
+    w : float[3]
+        Second vector.
 
     Returns
     -------
-    gamma (float): The relativistic factor.
+    v_cross_w : float[3]
+        The cross product of v and w. 
+    '''
+    u = np.zeros(3)
+
+    u[0] = v[1] * w[2] - v[2] * w[1]
+    u[1] = v[2] * w[0] - v[0] * w[2]
+    u[2] = v[0] * w[1] - v[1] * w[0]
+
+    return u
+
+
+@njit
+def gamma(v):
+    '''
+    Calculates the standard relativistic factor from a velocity vector.
+
+    Parameters
+    ----------
+    v : float[3]
+        The velocity vector (in m/s).
+
+    Returns
+    -------
+    gamma : float
+        The relativistic factor.
     '''
 
     return 1.0 / np.sqrt(1 - dot(v, v) / sp.c**2)
@@ -116,15 +152,26 @@ def local_onb(r, b_field, t=0.):
 
     Parameters
     ----------
-    r (3x1 numpy array): The origin of the new coordinate system.
-    b_field(r, t): The field function (this is obtained through the currying functions in fields.py).
-    t0 (float): The universal time (in seconds). Defaults to 0.
+    r : float[3]
+        The origin of the new coordinate system.
+
+    b_field(r, t=0.) : function
+        The magnetic field function (this is obtained through the currying functions in fields.py). Accepts a
+        position (float[3]) and time (float). Returns the magnetic field vector (float[3]) at that point in spacetime.
+
+    t : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to 0.
 
     Returns
     -------
-    local_x (3x1 numpy array): Local x axis unit vector.
-    local_y (3x1 numpy array): Local y axis unit vector.
-    local_z (3x1 numpy array): Local z axis unit vector.
+    local_x : float[3]
+        Local x axis unit vector.
+
+    local_y : float[3]
+        Local y axis unit vector.
+
+    local_z : float[3]
+        Local z axis unit vector.
     '''
 
     B = b_field(r, t)
@@ -153,17 +200,32 @@ def velocity_vec(r, K, m, b_field, pitch_angle, phase_angle, t=0.):
 
     Parameters
     ----------
-    r (3x1 numpy array): The location (in m) of the particle.
-    K (float): The kinetic energy (in eV) of the particle.
-    m (float): The mass (in kg) of the particle.
-    b_field(r, t): The field function (this is obtained through the currying functions in fields.py).
-    pitch_angle (float): The angle the velocity vector makes with respect to the magnetic field (in radians).
-    phase_angle (float): The angle the velocity vector makes with respect to (r x B) x B (in radians).
-    t0 (float): The universal time (in seconds). Defaults to 0.
+    r : float[3]
+        The location (in m) of the particle.
+
+    K : float
+        The kinetic energy (in eV) of the particle.
+
+    m : float
+        The mass (in kg) of the particle.
+
+    b_field(r, t=0.) : function
+        The magnetic field function (this is obtained through the currying functions in fields.py). Accepts a
+        position (float[3]) and time (float). Returns the magnetic field vector (float[3]) at that point in spacetime.
+
+    pitch_angle : float
+        The angle the velocity vector makes with respect to the magnetic field (in radians).
+
+    phase_angle : float
+        The angle the velocity vector makes with respect to (r x B) x B (in radians).
+
+    t : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to 0.
 
     Returns
     -------
-    v (3x1 numpy array): The velocity (in m/s) of the particle.
+    v : float[3]
+        The velocity vector (in m/s) of the particle.
     '''
 
     local_x, local_y, local_z = local_onb(r, b_field, t)
@@ -180,19 +242,29 @@ def velocity_vec(r, K, m, b_field, pitch_angle, phase_angle, t=0.):
 
 
 @njit
-def grad(field, r, eps=1e-6):
+def grad(field, r, t=0., eps=1e-6):
     '''
     Numerically finds the gradient of a field at a given point.
 
     Parameters
     ----------
-    field(r, t): The field function (this is obtained through the currying functions in fields.py).
-    r (3x1 numpy array): The location at which to find the gradient.
-    eps (float): The size of epsilon for use in the definition of the partial derivative. Defaults to 1e-6.
+    field(r, t=0.) : function
+        The field function (this is obtained through the currying functions in fields.py). Accepts a position (float[3])
+        and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    r : float[3]
+        The location at which to find the gradient.
+
+    t : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to 0.
+
+    eps : float, optional
+        The size of epsilon for use in the definition of the partial derivative. Defaults to 1e-6.
 
     Returns
     -------
-    grad (3x1 numpy array): The gradient of the field at the given point.
+    grad : float[3]
+        The gradient of the field at the given point.
     '''
 
     x_offset = np.array([eps, 0., 0.])
@@ -200,27 +272,37 @@ def grad(field, r, eps=1e-6):
     z_offset = np.array([0, 0., eps])
 
     grad = np.zeros(3)
-    grad[0] = (np.linalg.norm(field(r + x_offset)) - np.linalg.norm(field(r - x_offset))) / (2 * eps)
-    grad[1] = (np.linalg.norm(field(r + y_offset)) - np.linalg.norm(field(r - y_offset))) / (2 * eps)
-    grad[2] = (np.linalg.norm(field(r + z_offset)) - np.linalg.norm(field(r - z_offset))) / (2 * eps)
+    grad[0] = (np.linalg.norm(field(r + x_offset, t)) - np.linalg.norm(field(r - x_offset, t))) / (2 * eps)
+    grad[1] = (np.linalg.norm(field(r + y_offset, t)) - np.linalg.norm(field(r - y_offset, t))) / (2 * eps)
+    grad[2] = (np.linalg.norm(field(r + z_offset, t)) - np.linalg.norm(field(r - z_offset, t))) / (2 * eps)
 
     return grad
 
 
 @njit
-def jacobian(field, r, eps=1e-6):
+def jacobian(field, r, t=0., eps=1e-6):
     '''
     Numerically finds the Jacobian of a field at a given point.
 
     Parameters
     ----------
-    field(r, t): The field function (this is obtained through the currying functions in fields.py).
-    r (3x1 numpy array): The location at which to find the Jacobian.
-    eps (float): The size of epsilon for use in the definition of the partial derivative. Defaults to 1e-6.
+    field(r, t=0.) : function
+        The field function (this is obtained through the currying functions in fields.py). Accepts a position (float[3])
+        and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    r : float[3]
+        The location at which to find the Jacobian.
+
+    t : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to 0.
+
+    eps : float, optional
+        The size of epsilon for use in the definition of the partial derivative. Defaults to 1e-6.
 
     Returns
     -------
-    jac (3x3 numpy array): The gradient of the field at the given point.
+    jac : float[3, 3]
+        The Jacobian of the field at the given point.
     '''
 
     x_offset = np.array([eps, 0., 0.])
@@ -228,52 +310,62 @@ def jacobian(field, r, eps=1e-6):
     z_offset = np.array([0, 0., eps])
 
     jac = np.zeros((3, 3))
-    jac[:, 0] = (field(r + x_offset) - field(r - x_offset)) / (2 * eps)
-    jac[:, 1] = (field(r + y_offset) - field(r - y_offset)) / (2 * eps)
-    jac[:, 2] = (field(r + z_offset) - field(r - z_offset)) / (2 * eps)
+    jac[:, 0] = (field(r + x_offset, t) - field(r - x_offset, t)) / (2 * eps)
+    jac[:, 1] = (field(r + y_offset, t) - field(r - y_offset, t)) / (2 * eps)
+    jac[:, 2] = (field(r + z_offset, t) - field(r - z_offset, t)) / (2 * eps)
 
     return jac
 
 
 @njit
-def flc(field, r, eps=1e-6):
+def flc(field, r, t=0., eps=1e-6):
     '''
     Numerically finds the radius of curvature of the field line at a given point.
 
     Parameters
     ----------
-    field(r, t): The field function (this is obtained through the currying functions in fields.py).
-    r (3x1 numpy array): The location at which to find the field line curvature.
-    eps (float): The size of epsilon for use in the definition of the partial derivative. Defaults to 1e-6.
+    field(r, t=0.) : function
+        The field function (this is obtained through the currying functions in fields.py). Accepts a position (float[3])
+        and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    r : float[3]
+        The location at which to find the field line curvature.
+
+    t : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to 0.
+
+    eps : float, optional
+        The size of epsilon for use in the definition of the partial derivative. Defaults to 1e-6.
 
     Returns
     -------
-    Rc (float): The radius of curvature (in m).
+    Rc : float
+        The radius of curvature (in m).
     '''
 
     x_offset = np.array([eps, 0.0, 0.0])
     y_offset = np.array([0.0, eps, 0.0])
     z_offset = np.array([0.0, 0.0, eps])
     
-    b = field(r)
+    b = field(r, t)
     b /= np.linalg.norm(b)
 
-    fx1 = field(r + x_offset)
+    fx1 = field(r + x_offset, t)
     fx1 /= np.linalg.norm(fx1)
     
-    fx0 = field(r - x_offset)
+    fx0 = field(r - x_offset, t)
     fx0 /= np.linalg.norm(fx0)
     
-    fy1 = field(r + y_offset)
+    fy1 = field(r + y_offset, t)
     fy1 /= np.linalg.norm(fy1)
     
-    fy0 = field(r - y_offset)
+    fy0 = field(r - y_offset, t)
     fy0 /= np.linalg.norm(fy0)
     
-    fz1 = field(r + z_offset)
+    fz1 = field(r + z_offset, t)
     fz1 /= np.linalg.norm(fz1)
     
-    fz0 = field(r - z_offset)
+    fz0 = field(r - z_offset, t)
     fz0 /= np.linalg.norm(fz0)
 
     J = np.zeros((3, 3))
@@ -285,19 +377,29 @@ def flc(field, r, eps=1e-6):
 
 
 @njit
-def field_line(field, r, tol):
+def field_line(field, r, t=0., tol=1e-6):
     '''
-    Traces the field line of a given magnetosphere model using the Runge-Kutta-Fehlberg method. Use this for the Tsyganenko and IGRF models.
+    Traces a field line of a given magnetosphere model using the Runge-Kutta-Fehlberg method. Use this for the Tsyganenko and IGRF models.
 
     Parameters
     ----------
-    field(r, t): The field function (this is obtained through the currying functions in fields.py).
-    r (3x1 numpy array): A point which the field line runs through.
-    eps (float): The maximum error allowed by the solver.
+    field(r, t=0.) : function
+        The field function (this is obtained through the currying functions in fields.py). Accepts a position (float[3])
+        and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    r : float[3]
+        A location which intersects the desired field line.
+
+    t : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to 0.
+
+    tol : float, optional
+        The tolerance of the RK45 solver. Defaults to 1e-6.
 
     Returns
     -------
-    rr (Nx3 numpy array): An array of points marking the field line. Begins and stops where the field line is 0.5 R_E away from the origin.
+    rr : float[N, 3]
+        An array of points marking the field line. Begins and stops where the field line is 0.5 Re away from the origin.
     '''
 
     def rk45_step(field, r, h, tol, direction):
@@ -369,21 +471,33 @@ def field_line(field, r, tol):
     return rr
 
 
-@njit
-def b_along_path(field, rr):
+@njit(parallel=True)
+def b_along_path(field, rr, t=0.):
     '''
     Gives the magnetic field along a path.
 
     Parameters
     ----------
-    field(r, t): The field function (this is obtained through the currying functions in fields.py).
-    rr (Nx3 numpy array): An array of points marking the path.
+    field(r, t=0.) : function
+        The field function (this is obtained through the currying functions in fields.py). Accepts a position (float[3])
+        and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    rr : float[N, 3]
+        An array of points marking the path.
+
+    t : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to 0.
 
     Returns
     -------
-    field_vec (Nx3 numpy array): The field vector at each point along the path.
-    field_mag (Nx1 numpy array): The strength of the field along the path.
-    field_rad_mag (Nx1 numpy array): The strength of the radial (x and y) field along the path.
+    field_vec : float[N, 3]
+        The field vector at each point along the path.
+
+    field_mag : float[N]
+        The strength of the field along the path.
+
+    field_rad_mag : float[N]
+        The strength of the radial (x and y) field along the path.
     '''
 
     steps = len(rr[:, 0])
@@ -391,8 +505,8 @@ def b_along_path(field, rr):
     field_mag = np.zeros(steps)
     field_rad_mag = np.zeros(steps)
     
-    for i in range(steps):
-        vec = field(rr[i])
+    for i in prange(steps):
+        vec = field(rr[i], t)
         
         field_vec[i] = vec
         field_mag[i] = np.linalg.norm(vec)
@@ -401,65 +515,103 @@ def b_along_path(field, rr):
     return field_vec, field_mag, field_rad_mag
 
 
-@njit
-def gyrovector(B, r, v, m, q):
+@njit(parallel=True)
+def b_along_history(field, position, time):
     '''
-    Finds an approximate gyrovector for the given particle at the given location. This function adapted from Kaan Ozturk's RAPT code: https://github.com/mkozturk/rapt/
+    Gives the magnetic field along a history.
 
     Parameters
     ----------
-    B (3 numpy array): The magnetic field at this position
-    r (3 numpy array): The position of the particle.
-    v (3 numpy array): The velocity of the particle.
-    m (float): The particle's mass.
-    q (float): The particle's charge.
+    field(r, t=0.) : function
+        The field function (this is obtained through the currying functions in fields.py). Accepts a position (float[3])
+        and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    position : float[N, M, 3]
+        An array of N particle paths consisting of M points each.
+
+    time : float[M]
+        An array of M timesteps shared with the position history.
 
     Returns
     -------
-    gyrovec (3 numpy array): The approximate gyrovector (in m).
+    b_along_history_v : float[N, M, 3]
+        The field vector at each point along the history.
     '''
 
-    gamma_v = gamma(v)
-    return gamma_v * m / (q * dot(B, B)) * np.cross(B, v)
+    num_particles = np.shape(position)[0]
+    steps = np.shape(position)[1]
+
+    b_along_history_v = np.zeros_like(position)
+    
+    for i in prange(num_particles):
+        for j in prange(steps):
+            if (position[i, j] == 0).all():
+                continue
+                
+            b_along_history_v[i, j, :] = field(position[i, j, :], time[j])
+
+    return b_along_history_v
 
 
 @njit
-def field_reversal(field, rr):
+def field_reversal(field, rr, t=0.):
     '''
     Finds the point along a path at which the radial magnitude of the field is at a minimum.
     For a field with no dipole tilt, this coincides with the location of maximum curvature along a field line.
 
     Parameters
     ----------
-    field(r, t): The field function (this is obtained through the currying functions in fields.py).
-    rr (Nx3 numpy array): An array of points marking the path.
+    field(r, t=0.) : function
+        The field function (this is obtained through the currying functions in fields.py). Accepts a position (float[3])
+        and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    rr : float[N, 3]
+        An array of points marking the path.
+
+    t : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to 0.
 
     Returns
     -------
-    r (3x1 numpy array): The point of minimum radial field strength.
+    r : float[3]
+        The point of minimum radial field strength.
     '''
 
-    b_vec, b_mag, b_rad_mag = b_along_path(field, rr)
+    b_vec, b_mag, b_rad_mag = b_along_path(field, rr, t)
     return rr[b_rad_mag.argmin()]
 
 
-@njit
-def adiabaticity(field, rr, K, m=sp.m_e, q=-sp.e):
+@njit(parallel=True)
+def adiabaticity(field, rr, K, t=0., m=sp.m_e, q=-sp.e):
     '''
     For a given particle, returns the adiabaticity along a path. This is usually referred to by kappa = sqrt(R_c/rho),
     where R_c is the radius of curvature of the field line at that point and rho is the particle's gyroradius.
 
     Parameters
     ----------
-    field(r, t): The field function (this is obtained through the currying functions in fields.py).
-    rr (Nx3 numpy array): An array of points marking the path.
-    K (float): The kinetic energy of the particle (in eV).
-    m (float): The mass of the particle (in kg). Defaults to the electron mass.
-    q (float): The electric charge of the particle (in C). Defaults to the electron charge (the negative unit charge).
+    field(r, t=0.) : function
+        The field function (this is obtained through the currying functions in fields.py). Accepts a position (float[3])
+        and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    rr : float[N, 3]
+        An array of points marking the path.
+
+    K : float
+        The kinetic energy of the particle (in eV).
+
+    t : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to 0.
+
+    m : float, optional
+        The mass of the particle (in kg). Defaults to the electron mass.
+
+    q : float, optional
+        The electric charge of the particle (in C). Defaults to the electron charge (the negative unit charge).
 
     Returns
     -------
-    kappa (Nx1 numpy array): The adiabaticity of each point along the path.
+    kappa : float[N]
+        The adiabaticity of each point along the path.
     '''
 
     hist_new = np.zeros((len(rr[:, 0])))
@@ -467,7 +619,7 @@ def adiabaticity(field, rr, K, m=sp.m_e, q=-sp.e):
     gamma_v = 1 + eV_to_J(K) / (m * sp.c**2)
     v = (sp.c / gamma_v) * np.sqrt(gamma_v**2 - 1)
 
-    for i in range(len(rr[:, 0])):
+    for i in prange(len(rr[:, 0])):
         b = field(rr[i, :])
 
         rho_0 = gamma_v * m * v / (abs(q) * np.linalg.norm(b))
@@ -478,55 +630,57 @@ def adiabaticity(field, rr, K, m=sp.m_e, q=-sp.e):
     return hist_new
 
 
-def plot_field(field, axis, nodes, x_lims, y_lims, size=(10, 10), t=0.):
+@njit
+def solve_traj(i, steps, dt, initial_conditions, particle_properties, integrator, drop_lost, downsample):
     '''
-    Creates a plot of the integral curves of a field along one of the three axis-aligned planes passing through the origin.
+    Solves a single particle trajectory.
 
     Parameters
     ----------
-    field(r, t): The field function (this is obtained through the currying functions in fields.py).
-    axis (string): Either 'x', 'y', or 'z.' This is the axis the plane of the graph will be orthogonal to.
-    nodes (int): The number of samples to be taken along each axis.
-    x_lims (2 list): A 2 element list consisting of the horizontal axis limits. The lower value is listed first.
-    y_lims (2 list): A 2 element list consisting of the vertical axis limits. The lower value is listed first.
-    size (2 tuple): The matplotlib figure dimensions. Defaults to (10, 10).
-    t (float): The time at which to evaluate the field. Defaults to 0.
+    i : int
+        The index of the particle to solve.
+
+    steps : int
+        The number of steps to iterate the solver.
+
+    dt : float
+        The duration of each step.
+
+    velocity : float[N, M, 3]
+        A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    initial_conditions : float[N, 4, 3]
+        Array of initial conditions. The first index denotes the particle, the second the quantity (1 = position, 2 = velocity, 3 = magnetic field, 4 = electric field), and the third the dimension.
+
+    particle_properties : float[N, 2]
+        Array of particle properties. The first index denotes the mass and the second the charge.
+
+    integrator(state, intrinsic, dt, step_num) : function
+        The integrator function (this is obtained through the currying functions in integrators.py).
+
+    drop_lost : bool
+        Whether particles within 1 Re + 100 km of the origin should be dropped from the simulation.
+
+    downsample : int
+        Sample every N steps, with N = downsample.
 
     Returns
     -------
-    None
+    hist_indiv : float[M, 4, 3]
+        The complete history of a single particle.
     '''
 
-    x = np.linspace(x_lims[0], x_lims[1], nodes)
-    y = np.linspace(y_lims[0], y_lims[1], nodes)
+    hist_indiv = np.zeros((steps, 4, 3))
+    hist_indiv[0, :, :] = np.copy(initial_conditions[i, :, :])
 
-    U, V = np.meshgrid(x, y)
-    X, Y = np.meshgrid(x, y)
+    if (hist_indiv[0, :, :] == np.zeros((4, 3))).all():
+        return np.zeros((int(steps // downsample), 4, 3))
 
-    fig, ax = plt.subplots(figsize=size)
+    for j in range(steps - 1):
+        hist_indiv[j + 1] = integrator(hist_indiv[j], particle_properties[i, :], dt, j)
 
-    if axis_num[axis] == 0:
-        for i in range(nodes):
-            for j in range(nodes):
-                W, U[i][j], V[i][j] = field(np.array([1e-20, X[i][j], Y[i][j]]), t)
-                ax.set_xlabel('$y$')
-                ax.set_ylabel('$z$')
-    elif axis_num[axis] == 1:
-        for i in range(nodes):
-            for j in range(nodes):
-                U[i][j], W, V[i][j] = field(np.array([X[i][j], 1e-20, Y[i][j]]), t)
-                ax.set_xlabel('$x$')
-                ax.set_ylabel('$z$')
-    elif axis_num[axis] == 2:
-        for i in range(nodes):
-            for j in range(nodes):
-                U[i][j], V[i][j], W  = field(np.array([X[i][j], Y[i][j], 1e-20]), t)
-                ax.set_xlabel('$x$')
-                ax.set_ylabel('$y$')
+        if drop_lost:
+            if dot(hist_indiv[j + 1, 0, :], hist_indiv[j + 1, 0, :]) <= (Re + 100e3)**2:
+                break
 
-    color = 2 * np.log(np.hypot(U, V))
-    ax.streamplot(X, Y, U, V, color=color, linewidth=1, cmap=plt.cm.jet, density=2, arrowstyle='wedge', arrowsize=1.)
-
-    ax.set_xlim(x_lims[0], x_lims[1])
-    ax.set_ylim(y_lims[0], y_lims[1])
-    plt.show()
+    return hist_indiv[::downsample, :, :]
