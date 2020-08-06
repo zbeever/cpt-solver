@@ -9,7 +9,7 @@ from numba import njit, prange
 
 from integrators import relativistic_boris
 from distributions import delta
-from utils import Re, field_line, b_along_path, velocity_vec
+from utils import Re, field_line, b_along_path, velocity_vec, solve_traj, format_bytes
 
 
 class solver:
@@ -221,9 +221,6 @@ class solver:
         None
         '''
 
-        if self.loaded:
-            raise NameError('Cannot populate an already solved system. Use add_particles.')
-
         self.n = trials
 
         self.initial_conditions  = np.zeros((self.n, 4, 3))
@@ -248,6 +245,7 @@ class solver:
             self.particle_properties[i, 1] = q
             
         self.populated = True
+        self.solved = False
 
         return
 
@@ -286,9 +284,6 @@ class solver:
         None
         '''
 
-        if self.loaded:
-            raise NameError('Cannot populate an already solved system. Use add_particles.')
-
         self.n = trials
 
         self.initial_conditions  = np.zeros((self.n, 4, 3))
@@ -298,7 +293,7 @@ class solver:
         mag_eq = np.array([-L * Re, 0, 0])
 
         # Get the array of points tracing the field line.
-        rr = field_line(self.b_field, mag_eq, 1e-6)
+        rr = field_line(self.b_field, mag_eq)
 
         # Get the magnetic field along the field line.
         b_vec, b_mag, b_rad_mag = b_along_path(self.b_field, rr)
@@ -350,6 +345,7 @@ class solver:
             self.particle_properties[i, 1] = q
             
         self.populated = True
+        self.solved = False
         
         return
 

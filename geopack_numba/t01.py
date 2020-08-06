@@ -1110,8 +1110,8 @@ def birk_1n2(numb,mode,ps,x,y,z, xkappa):        # NB# 6, p.60
 
 
     m=mode
-    dtheta = 0
-    dphi = 0
+    dtheta = 0.0
+    dphi = 0.0
     if numb == 1:
         dphi=0.055
         dtheta=0.06

@@ -2,8 +2,7 @@ import numpy as np
 from math import cos, sin, sqrt
 from numba import jit, njit
 
-# WORKS
-@jit
+@njit
 def t96(parmod,ps,x,y,z):
     """
     Release date of this version: June 22, 1996.
@@ -124,7 +123,6 @@ def t96(parmod,ps,x,y,z):
 
     return bx,by,bz
 
-# WORKS
 @njit
 def dipshld(ps,x,y,z):
     """
@@ -148,7 +146,6 @@ def dipshld(ps,x,y,z):
 
     return bx,by,bz
 
-# WORKS
 @njit
 def cylharm(a, x, y, z):
     """
@@ -197,7 +194,6 @@ def cylharm(a, x, y, z):
 
     return bx,by,bz
 
-# WORKS
 @njit
 def cylhar1(a, x,y,z):
     """
@@ -243,7 +239,6 @@ def cylhar1(a, x,y,z):
 
     return bx,by,bz
 
-# WORKS
 @njit
 def tailrc96(sps, x,y,z):
     """
@@ -254,10 +249,6 @@ def tailrc96(sps, x,y,z):
     """
 
     # common /warp/ cpss,spss,dpsrr,rps,warp,d,xs,zs,dxsx,dxsy,dxsz,dzsx,dzsy,dzsz,dzetas,ddzetadx,ddzetady,ddzetadz,zsww
-    # READ
-    # global xs,zs,dxsx,dxsy,dxsz,dzsx,dzsy,dzsz,dzetas,ddzetadx,ddzetady,ddzetadz,zsww
-    # WRITE
-    # global cpss, spss, dpsrr, rps, warp, d
 
     arc = np.array([
         -3.087699646,3.516259114,18.81380577,-13.95772338,-5.497076303,0.1712890838,
@@ -331,7 +322,7 @@ def tailrc96(sps, x,y,z):
     ddzetadz=zs*dzsz/dzetas
 
     wx,wy,wz = shlcar3x3(arc,x,y,z,sps)
-    hx,hy,hz = ringcurr96(x,y,z, cpss, spss, dpsrr, xs, dxsx, dxsy, dxsz, dzsx, dzsz, zs) # THIS MIGHT ACTUALLY SET A BUNCH OF GLOBAL VARIABLES
+    hx,hy,hz = ringcurr96(x,y,z, cpss, spss, dpsrr, xs, dxsx, dxsy, dxsz, dzsx, dzsz, zs)
     bxrc=wx+hx
     byrc=wy+hy
     bzrc=wz+hz
@@ -351,7 +342,6 @@ def tailrc96(sps, x,y,z):
     return bxrc,byrc,bzrc, bxt2,byt2,bzt2, bxt3,byt3,bzt3
 
 
-# WORKS
 @njit
 def shlcar3x3(a, x,y,z, sps):
     """
@@ -422,8 +412,6 @@ def shlcar3x3(a, x,y,z, sps):
 
     return hx,hy,hz
 
-# WORKS 
-# THIS MIGHT ACTUALLY SET A BUNCH OF GLOBAL VARIABLES
 @njit
 def ringcurr96(x,y,z, cpss, spss, dpsrr, xs, dxsx, dxsy, dxsz, dzsx, dzsz, zs):
     """
@@ -441,7 +429,6 @@ def ringcurr96(x,y,z, cpss, spss, dpsrr, xs, dxsx, dxsy, dxsz, dzsx, dzsz, zs):
 
     # common /warp/ cpss,spss,dpsrr, xnext(3),xs,zswarped,dxsx,dxsy, dxsz,dzsx,dzsywarped,dzsz,other(4),zs
     # zs here is without y-z warp
-    #global cpss, spss, dpsrr, xs, dxsx, dxsy, dxsz, dzsx, dzsz, zs
     d0, deltadx, xd, xldx = [2.,0.,0.,4.]  # the rc is now completely symmetric (deltadx=0)
 
     # the original values of f[i] were multiplied by beta[i] (to reduce the number of
@@ -511,7 +498,6 @@ def ringcurr96(x,y,z, cpss, spss, dpsrr, xs, dxsx, dxsy, dxsz, dzsx, dzsz, zs):
 
     return bx,by,bz
 
-# WORKS
 @njit
 def taildisk(x,y,z, cpss, spss, dpsrr, xs, zs, dxsx, dxsy, dxsz, dzetas, ddzetadx, ddzetady, ddzetadz, zsww):
     """
@@ -526,9 +512,6 @@ def taildisk(x,y,z, cpss, spss, dpsrr, xs, zs, dxsx, dxsy, dxsz, dzetas, ddzetad
     """
 
     # common /warp/ cpss,spss,dpsrr,xnext(3),xs,zs,dxsx,dxsy,dxsz,other(3),dzetas,ddzetadx,ddzetady,ddzetadz,zsww
-
-    # READ
-    #global cpss, spss, dpsrr, xs, zs, xs, zs, dxsx, dxsy, dxsz, dxsz, dzetas, ddzetadx, ddzetady, ddzetadz, zsww
 
     xshift = 4.5
     # here original F(I) are multiplied by BETA(I), to economize calculations
@@ -585,7 +568,6 @@ def taildisk(x,y,z, cpss, spss, dpsrr, xs, zs, dxsx, dxsy, dxsz, dzetas, ddzetad
 
     return bx,by,bz
 
-# WORKS
 @njit
 def tail87(x, z, rps, warp):
     """
@@ -598,8 +580,6 @@ def tail87(x, z, rps, warp):
     #     from the parameters rh and dr of the T96-type module, and
     # warp. The bending of the sheet flanks in the z-direction, directed
     #      opposite to rps, and increasing with dipole tilt and |y|
-    # global first, rps,warp,d, other
-    # global rps, warp
     dd = 3.
     # These are new values of x1, x2, b0, b1, b2, corresponding to tscale=1, instead of tscale=0.6
     hpi,rt,xn,x1,x2,b0,b1,b2,xn21,xnr,adln = [1.5707963,40.,-10.,
@@ -679,7 +659,6 @@ def tail87(x, z, rps, warp):
     return bx,bz
 
 
-# WORKS
 @njit
 def birk1tot_02(ps, x,y,z):
     """
@@ -695,7 +674,6 @@ def birk1tot_02(ps, x,y,z):
     # common /loopdip1/ tilt,xcentre(2),radius(2), dipx,dipy
     # common /coord21/ xx2(14),yy2(14),zz2(14)
     # common /dx1/ dx,scalein,scaleout
-    # global xx1,yy1, rh,dr, tilt, xcentre,radius, dipx,dipy
 
     c1 = np.array([
         -0.911582e-3,-0.376654e-2,-0.727423e-2,-0.270084e-2,-0.123899e-2,
@@ -904,7 +882,6 @@ def birk1tot_02(ps, x,y,z):
 
     return bx,by,bz
 
-# WORKS
 @njit
 def diploop1(xi, diploop1_params):
     """
@@ -1000,7 +977,6 @@ def diploop1(xi, diploop1_params):
 
     return d
 
-# WORKS
 @njit
 def dipxyz(x,y,z):
     """
@@ -1033,7 +1009,6 @@ def dipxyz(x,y,z):
     return bxx,byx,bzx,bxy,byy,bzy,bxz,byz,bzz
 
 
-# WORKS
 @njit
 def crosslp(x,y,z,xc,rl,al):
     """
@@ -1063,7 +1038,6 @@ def crosslp(x,y,z,xc,rl,al):
 
     return bx,by,bz
 
-# WORKS
 @njit
 def circle(x,y,z,rl):
     """
@@ -1101,7 +1075,6 @@ def circle(x,y,z,rl):
     return bx,by,bz
 
 
-# WORKS
 @njit
 def condip1(xi, condip1_params):
     """
@@ -1245,7 +1218,6 @@ def condip1(xi, condip1_params):
     return d
 
 
-# WORKS
 @njit
 def birk1shld(ps, x,y,z):
     """
@@ -1332,7 +1304,6 @@ def birk1shld(ps, x,y,z):
 
     return bx,by,bz
 
-# WORKS
 @njit
 def birk2tot_02(ps, x,y,z):
     """
@@ -1350,7 +1321,6 @@ def birk2tot_02(ps, x,y,z):
 
     return bx,by,bz
 
-# WORKS
 @njit
 def birk2shl(x,y,z, ps):
     """
@@ -1430,7 +1400,6 @@ def birk2shl(x,y,z, ps):
                     l += 1
     return hx,hy,hz
 
-# WORKS
 @njit
 def r2_birk(x,y,z, ps):
     """
@@ -1480,7 +1449,6 @@ def r2_birk(x,y,z, ps):
 
     return bx,by,bz
 
-# WORKS
 @njit
 def xksi(x,y,z):
     """
@@ -1529,7 +1497,6 @@ def xksi(x,y,z):
 
     return xksi
 
-# WORKS
 @njit
 def tksi(xksi,xks0,dxksi):
 
@@ -1550,7 +1517,6 @@ def tksi(xksi,xks0,dxksi):
     return tksii
 
 
-# WORKS
 @njit
 def fexp(s,a):
     # TODO the function is not continuous in a???
@@ -1559,7 +1525,6 @@ def fexp(s,a):
     else:
         return s*np.exp(a*(s*s-1))
 
-# WORKS
 @njit
 def fexp1(s,a):
     # TODO the function is not continuous in a???
@@ -1569,7 +1534,6 @@ def fexp1(s,a):
         return np.exp(a*(s*s-1))
 
 
-# WORKS
 @njit
 def r2outer(x,y,z):
     """
@@ -1600,7 +1564,6 @@ def r2outer(x,y,z):
 
     return bx,by,bz
 
-# WORKS
 @njit
 def loops4(x,y,z,xc,yc,zc,r,theta,phi):
     """
@@ -1677,7 +1640,6 @@ def loops4(x,y,z,xc,yc,zc,r,theta,phi):
     return bx,by,bz
 
 
-# WORKS
 @njit
 def r2sheet(x,y,z):
     """
@@ -1793,7 +1755,6 @@ def r2sheet(x,y,z):
     return bx,by,bz
 
 
-# WORKS
 @njit
 def r2inner(x, y, z):
     pl1, pl2, pl3, pl4, pl5, pl6, pl7, pl8 = [154.185, -2.12446, 0.601735e-1, -0.153954e-2, 0.355077e-4, 29.9996, 262.886, 99.9132]
@@ -1814,7 +1775,6 @@ def r2inner(x, y, z):
     return bx, by, bz
 
 
-# WORKS
 @njit
 def bconic(x,y,z,nmax):
     """
@@ -1866,7 +1826,6 @@ def bconic(x,y,z,nmax):
     return cbx,cby,cbz
 
 
-# WORKS
 @njit
 def dipdistr(x, y, z, mode):
     """
@@ -1898,7 +1857,6 @@ def dipdistr(x, y, z, mode):
     return bx, by, bz
 
 
-# WORKS
 @njit
 def intercon(x,y,z):
     """
@@ -1954,7 +1912,6 @@ def intercon(x,y,z):
     return bx, by, bz
 
 
-# WORKS
 @njit
 def dipole(ps, x, y, z):
     """

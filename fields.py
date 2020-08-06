@@ -5,8 +5,11 @@ from numba import njit, jit
 from geopack_numba import geopack as gp
 from geopack_numba import t89 as ext_t89
 from geopack_numba import t96 as ext_t96
+from geopack_numba import t01 as ext_t01
+from geopack_numba import t04 as ext_t04
 
 from utils import inv_Re
+
 
 def zero_field():
     '''
@@ -198,7 +201,7 @@ def earth_dipole(t0=4.01172e7):
     gp.recalc(t0)
 
     @njit
-    def field(r, t= 0.):
+    def field(r, t=0.):
         x_gsm = r[0] * inv_Re
         y_gsm = r[1] * inv_Re
         z_gsm = r[2] * inv_Re
@@ -225,7 +228,7 @@ def igrf(t0=4.01172e7):
         The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
-    gp.recalc(t0)
+    ps, a, g, h, rec = gp.recalc(t0)
 
     @njit
     def field(r, t=0.):
@@ -233,7 +236,7 @@ def igrf(t0=4.01172e7):
         y_gsm = r[1] * inv_Re
         z_gsm = r[2] * inv_Re
 
-        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm))
+        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm, a, g, h, rec))
 
         return field_int * 1e-9
 
@@ -261,23 +264,23 @@ def t89(Kp, t0=4.0118e7, sw_v=np.array([-400., 0., 0.])):
         The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
-    ps = gp.recalc(t0, sw_v[0], sw_v[1], sw_v[2])
+    ps, a, g, h, rec = gp.recalc(t0, sw_v[0], sw_v[1], sw_v[2])
 
     @njit
     def field(r, t=0.):
         x_gsm = r[0] * inv_Re
         y_gsm = r[1] * inv_Re
         z_gsm = r[2] * inv_Re
-        
-        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm))
+
+        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm, a, g, h, rec))
         field_ext = np.asarray(ext_t89.t89(Kp, ps, x_gsm, y_gsm, z_gsm))
-        
+
         return (field_int + field_ext) * 1e-9
 
     return field
 
 
-def t96(par, t0=4.0118e7):
+def t96(par, t0=4.0118e7, sw_v=np.array([-400., 0., 0.])):
     '''
     A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 1996 model (DOI: 10.1029/96JA02735) and the IGRF model.
 
@@ -311,21 +314,23 @@ def t96(par, t0=4.0118e7):
         The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
-    def field(r, t=0., sw_v=np.array([-400., 0., 0.])):
+    ps, a, g, h, rec = gp.recalc(t0, sw_v[0], sw_v[1], sw_v[2])
+
+    @njit
+    def field(r, t=0.):
         x_gsm = r[0] * inv_Re
         y_gsm = r[1] * inv_Re
         z_gsm = r[2] * inv_Re
-        
-        ps = gp.recalc(t + t0, sw_v[0], sw_v[1], sw_v[2])
-        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm))
+
+        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm, a, g, h, rec))
         field_ext = np.asarray(ext_t96.t96(par, ps, x_gsm, y_gsm, z_gsm))
-        
+
         return (field_int + field_ext) * 1e-9
 
     return field
 
 
-def t01(par, t0=4.0118e7):
+def t01(par, t0=4.0118e7, sw_v=np.array([-400., 0., 0.])):
     '''
     A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2001 model (DOI: 10.1029/2001JA000220) and the IGRF model.
 
@@ -368,22 +373,23 @@ def t01(par, t0=4.0118e7):
         The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
-    @jit
-    def field(r, t=0., sw_v=np.array([-400., 0., 0.])):
+    ps, a, g, h, rec = gp.recalc(t0, sw_v[0], sw_v[1], sw_v[2])
+
+    @njit
+    def field(r, t=0.):
         x_gsm = r[0] * inv_Re
         y_gsm = r[1] * inv_Re
         z_gsm = r[2] * inv_Re
-        
-        ps = gp.recalc(t + t0, sw_v[0], sw_v[1], sw_v[2])
-        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm))
-        field_ext = np.asarray(gp.t01.t01(par, ps, x_gsm, y_gsm, z_gsm))
-        
+
+        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm, a, g, h, rec))
+        field_ext = np.asarray(ext_t01.t01(par, ps, x_gsm, y_gsm, z_gsm))
+
         return (field_int + field_ext) * 1e-9
 
     return field
 
 
-def t04(par, t0=4.01e7):
+def t04(par, t0=4.01e7, sw_v=np.array([-400., 0., 0.])):
     '''
     A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2004 model (DOI: 10.1029/2004JA010798) and the IGRF model.
 
@@ -432,16 +438,25 @@ def t04(par, t0=4.01e7):
         The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
     '''
 
-    @jit
-    def field(self, r, t= 0., sw_v=np.array([-400., 0., 0.])):
+    ps, a, g, h, rec = gp.recalc(t0, sw_v[0], sw_v[1], sw_v[2])
+
+    @njit
+    def field(r, t=0.):
         x_gsm = r[0] * inv_Re
         y_gsm = r[1] * inv_Re
         z_gsm = r[2] * inv_Re
-        
-        ps = gp.recalc(t + self.t0, sw_v[0], sw_v[1], sw_v[2])
-        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm))
-        field_ext = np.asarray(gp.t04.t04(par, ps, x_gsm, y_gsm, z_gsm))
-        
+
+        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm, a, g, h, rec))
+        field_ext = np.asarray(ext_t04.t04(par, ps, x_gsm, y_gsm, z_gsm))
+
         return (field_int + field_ext) * 1e-9
 
+    return field
+
+def xz_slice(field_func):
+    @njit
+    def field(r, t=0.):
+        r_fixed = np.array([r[0], 0., r[2]])
+        return field_func(r_fixed, t)
+    
     return field

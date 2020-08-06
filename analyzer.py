@@ -2,6 +2,7 @@ import os
 import h5py
 import numpy as np
 
+from utils import format_bytes, flc
 from diagnostics import *
 
 class analyzer:
@@ -123,7 +124,7 @@ class analyzer:
         self.num_particles = self.hist.attrs['num_particles']
         self.steps = self.hist.attrs['steps']
 
-        if 'derived_quantities' not in self.f.keys():
+        if 'derived_quantities' not in self.f.keys() and read_write != 'r':
             self.f.create_group('derived_quantities')
 
         self.dvqt = self.f['derived_quantities']
@@ -1091,7 +1092,7 @@ class analyzer:
 
         recalc = recalc if recalc_all == False else True
 
-        eq_pitch_ang_v = self.__required(self.moment, recalc_all, b_field)
+        eq_pitch_ang_v = self.__required(self.eq_pitch_ang, recalc_all, b_field)
 
         self.__open()
         found_coef, eq_pitch_ang_trans_v = self.__prepare('eq_pitch_ang_trans_coef', (bins, self.steps), recalc)

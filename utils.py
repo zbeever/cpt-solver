@@ -377,7 +377,7 @@ def flc(field, r, t=0., eps=1e-6):
 
 
 @njit
-def field_line(field, r, t=0., tol=1e-6):
+def field_line(field, r, t=0., tol=1e-5, max_iter=1000):
     '''
     Traces a field line of a given magnetosphere model using the Runge-Kutta-Fehlberg method. Use this for the Tsyganenko and IGRF models.
 
@@ -394,7 +394,10 @@ def field_line(field, r, t=0., tol=1e-6):
         The time (in seconds). Used for time-varying fields. Defaults to 0.
 
     tol : float, optional
-        The tolerance of the RK45 solver. Defaults to 1e-6.
+        The tolerance of the RK45 solver. Defaults to 1e-5.
+
+    max_iter : int, optional
+        The maximum iterations to run the RK45 solver. Defaults to 1000.
 
     Returns
     -------
@@ -455,16 +458,20 @@ def field_line(field, r, t=0., tol=1e-6):
     
     rrf = np.zeros((1, 3))
     rrf[0] = r
-    
+   
+    i = 0
+
     while True:
         r, h = rk45_step(field, r, h, tol, 1)
 
-        if np.linalg.norm(r) <= 0.5 * Re:
+        if np.linalg.norm(r) <= 0.5 * Re or i > max_iter:
             break
 
         k = np.zeros((1, 3))
         k[0] = r
         rrf = np.append(rrf, k, axis=0)
+
+        i += 1
         
     rr = np.append(rrf[::-1], rrb, axis=0)
     
