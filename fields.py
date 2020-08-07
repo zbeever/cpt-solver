@@ -8,7 +8,7 @@ from geopack_numba import t96 as ext_t96
 from geopack_numba import t01 as ext_t01
 from geopack_numba import t04 as ext_t04
 
-from utils import inv_Re
+from utils import Re, inv_Re
 
 
 def zero_field():
@@ -453,10 +453,96 @@ def t04(par, t0=4.01e7, sw_v=np.array([-400., 0., 0.])):
 
     return field
 
+
 def xz_slice(field_func):
+    '''
+    Given a field, this takes the x-z plane at the origin and extends it along the y-axis, effectively removing one dimension from the system.
+
+    Parameters
+    ----------
+    field_func : function
+        The original field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    Returns
+    -------
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+    '''
+
     @njit
     def field(r, t=0.):
         r_fixed = np.array([r[0], 0., r[2]])
         return field_func(r_fixed, t)
     
+    return field
+
+
+def evolving_harris_cs_model(b0x, b0z, L_cs, lambd=40):
+    '''
+    A Harris current sheet evolving in time. Has a strengthening factor in the x-component to force mirroring.
+
+    Parameters
+    ----------
+    b0x : float
+        The x-component of the magnetic field (in T) at the x-y plane.
+
+    b0z : float
+        The z-component of the magnetic field (in T) at the x-y plane.
+
+    L_cs(t) : function
+        The function describing the change in current sheet thickness (in m) over time.    
+
+    Returns
+    -------
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+    '''
+
+    @njit
+    def field(r, t=0.):
+        z = r[2]
+        L = L_cs(t)
+
+        Bx = b0x * np.tanh(z / L) + np.exp(-lambd) * np.sinh(z * inv_Re)
+        By = 0
+        Bz = b0z
+
+        return np.array([Bx, By, Bz])
+
+    return field
+
+
+def evolving_harris_induced_E(b0x, L_cs, eps=1e-6):
+    '''
+    The induced electric field associated with an evolving Harris current sheet.
+
+    Parameters
+    ----------
+    b0x : float
+        The x-component of the magnetic field (in T) at the x-y plane.
+
+    L_cs(t) : function
+        The function describing the change in current sheet thickness (in m) over time.    
+
+    eps : float, optional
+        The small value used to calculate the derivative of L_cs(t). Defaults to 1e-6. Should be at least as small as the timestep of the simulation.
+
+    Returns
+    -------
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+    '''
+
+    @njit
+    def field(r, t=0.):
+        z = r[2]
+        L = L_cs(t)
+        dLdt = (L_cs(t + 0.5 * eps) - L_cs(t - 0.5 * eps)) / eps
+
+        Ex = 0
+        Ey = b0x * dLdt * ((z / L) * np.tanh(z / L) - np.log(np.cosh(z / L)) - np.log(2))
+        Ez = 0
+
+        return np.array([Ex, Ey, Ez])
+
     return field
