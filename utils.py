@@ -408,27 +408,27 @@ def field_line(field, r, t=0., tol=1e-5, max_iter=1000):
     def rk45_step(field, r, h, tol, direction):
         a = np.sign(direction)
         
-        k1 = a * field(r)
+        k1 = a * field(r, t)
         k1 /= np.linalg.norm(k1)
         k1 *= h
 
-        k2 = a * field(r + 0.25 * k1)
+        k2 = a * field(r + 0.25 * k1, t)
         k2 /= np.linalg.norm(k2)
         k2 *= h
 
-        k3 = a * field(r + 0.09375 * k1 + 0.28125 * k2)
+        k3 = a * field(r + 0.09375 * k1 + 0.28125 * k2, t)
         k3 /= np.linalg.norm(k3)
         k3 *= h
 
-        k4 = a * field(r + 0.87938097405553 * k1 - 3.2771961766045 * k2 + 3.3208921256259 * k3)
+        k4 = a * field(r + 0.87938097405553 * k1 - 3.2771961766045 * k2 + 3.3208921256259 * k3, t)
         k4 /= np.linalg.norm(k4)
         k4 *= h
 
-        k5 = a * field(r + 2.0324074074074 * k1 - 8 * k2 + 7.1734892787524 * k3 - 0.20589668615984 * k4)
+        k5 = a * field(r + 2.0324074074074 * k1 - 8 * k2 + 7.1734892787524 * k3 - 0.20589668615984 * k4, t)
         k5 /= np.linalg.norm(k5)
         k5 *= h
 
-        k6 = a * field(r - 0.2962962962963 * k1 + 2 * k2 - 1.3816764132554 * k3 + 0.45297270955166 * k4 - 0.275 * k5)
+        k6 = a * field(r - 0.2962962962963 * k1 + 2 * k2 - 1.3816764132554 * k3 + 0.45297270955166 * k4 - 0.275 * k5, t)
         k6 /= np.linalg.norm(k6)
         k6 *= h
 
@@ -436,7 +436,13 @@ def field_line(field, r, t=0., tol=1e-5, max_iter=1000):
         z_plus_1 = r + 0.11851851851852 * k1 + 0.51898635477583 * k3 + 0.50613149034202 * k4 - 0.18 * k5 + 0.036363636363636 * k6
 
         t_plus_1 = z_plus_1 - y_plus_1
-        h = 0.9 * h * min(max(np.sqrt(tol / (2 * np.linalg.norm(t_plus_1))), 0.3), 2)
+        mag_t_plus_1 = np.linalg.norm(t_plus_1)
+
+        if mag_t_plus_1 == 0:
+            h = 1.8 * h
+            return z_plus_1, h
+        
+        h = 0.9 * h * min(max(np.sqrt(tol / (2 * mag_t_plus_1)), 0.3), 2)
         
         return z_plus_1, h
 
@@ -444,15 +450,19 @@ def field_line(field, r, t=0., tol=1e-5, max_iter=1000):
     rrb[0] = r
     
     h = 1e4
+
+    i = 0
     while True:
         r, h = rk45_step(field, r, h, tol, -1)
 
-        if np.linalg.norm(r) <= 0.5 * Re:
+        if np.linalg.norm(r) <= 0.2 * Re or i > max_iter:
             break
 
         k = np.zeros((1, 3))
         k[0] = r
         rrb = np.append(rrb, k, axis=0)
+
+        i += 1
         
     r = np.copy(rrb[0])
     
@@ -460,11 +470,10 @@ def field_line(field, r, t=0., tol=1e-5, max_iter=1000):
     rrf[0] = r
    
     i = 0
-
     while True:
         r, h = rk45_step(field, r, h, tol, 1)
 
-        if np.linalg.norm(r) <= 0.5 * Re or i > max_iter:
+        if np.linalg.norm(r) <= 0.2 * Re or i > max_iter:
             break
 
         k = np.zeros((1, 3))
@@ -525,7 +534,7 @@ def b_along_path(field, rr, t=0.):
 @njit(parallel=True)
 def b_along_history(field, position, time):
     '''
-    Gives the magnetic field along a history.
+    Gives the magnetic field along a history of positions.
 
     Parameters
     ----------
