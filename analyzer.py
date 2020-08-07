@@ -33,16 +33,22 @@ class analyzer:
         Returns the magnetic field (in T) at each point along each particle's trajectory.
 
     electric_field()
+        Returns the electric field (in V/m) at each point along each particle's trajectory.
 
     mass()
+        Returns the mass (in kg) of each particle.
 
     charge()
+        Returns the charge (in C) of each particle.
 
     time()
+        Returns the time (in s) at each timestep.
 
     r_mag(numba=False, recalc=False)
+        Returns the distance (in m) of each particle from the origin.
 
     b_mag(numba=False, recalc=False)
+        Returns the magnetic field strength (in T) at each point along each particle's trajectory.
 
     v_par(numba=False, recalc=False)
 
@@ -184,7 +190,7 @@ class analyzer:
 
         Returns
         -------
-        results : (float[N, ..., M], ..., float[N, ..., M])
+        results : (float[N, ..., M], ..., float[N, ..., M]), optional
             Tuple containing the requested quantities in the same order as they were specified.
         '''
 
@@ -307,7 +313,8 @@ class analyzer:
 
         Returns
         -------
-        ee_v (NxM numpy array): The electric field (in V/m) at each point along each particle's trajectory.
+        ee_v : float[N, M]
+            The electric field (in V/m) at each point along each particle's trajectory.
         '''
 
         self.__open('r')
@@ -327,7 +334,8 @@ class analyzer:
 
         Returns
         -------
-        mm_v (N numpy array): The mass (in kg) of each particle.
+        mm_v : float[N]
+            The mass (in kg) of each particle.
         '''
 
         self.__open('r')
@@ -347,7 +355,8 @@ class analyzer:
 
         Returns
         -------
-        qq_v (N numpy array): The charge (in C) of each particle.
+        qq_v : float[N]
+            The charge (in C) of each particle.
         '''
 
         self.__open('r')
@@ -367,7 +376,8 @@ class analyzer:
 
         Returns
         -------
-        tt_v (N numpy array): The time (in s) at each timestep.
+        tt_v : float[N]
+            The time (in s) at each timestep.
         '''
 
         self.__open('r')
@@ -383,12 +393,16 @@ class analyzer:
 
         Parameters
         ----------
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
-        r_mag_v (NxM numpy array): The distance (in m) of each particle from the origin for each timestep.
+        r_mag_v : float[N, M]
+            The distance (in m) of each particle from the origin for each timestep.
         '''
 
         self.__open()
@@ -414,12 +428,16 @@ class analyzer:
 
         Parameters
         ----------
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
-        b_mag_v (NxM numpy array): The magnetic field strength (in T) at each particle's location at each timestep.
+        b_mag_v : float[N, M]
+            The magnetic field strength (in T) at each particle's location at each timestep.
         '''
 
         self.__open()
@@ -680,7 +698,7 @@ class analyzer:
             return gyrofreq_v
 
     
-    def eq_pitch_ang(self, b_field=None, unwrapped=False, recalc=False, recalc_all=False):
+    def eq_pitch_ang(self, b_field=None, unwrapped=False, recalc=False, recalc_all=False, constant_b_min=None):
         '''
         Returns the equatorial pitch angle (in radians) of each particle at each point along its trajectory.
 
@@ -691,9 +709,13 @@ class analyzer:
         recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
         recalc_all (bool): Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
 
+        constant_b_min : float, optional
+            The minimum strength of the magnetic field (in T). Use to bypass the checking mechanism. This is useful for the Harris current sheet model. Defaults to None.
+
         Returns
         -------
-        eq_pitch_ang_v (NxM numpy array): The equatorial pitch angle (in radians) of each particle at each timestep.
+        eq_pitch_ang_v : float[N, M]
+            The equatorial pitch angle (in radians) of each particle at each timestep.
         '''
 
         recalc = recalc if recalc_all == False else True
@@ -826,7 +848,13 @@ class analyzer:
                 pa_avg = (pa_v[i, mp_ind] + pa_v[i, np.clip(mp_ind + 1, 0, self.steps - 1)]) * 0.5
                 
                 for j in range(mp_ind_max):
-                    sin_eq_pa = np.sqrt(b_mag_v[i, x_ind[min(j, x_ind_max - 1)]] / (b_mirror_avg[j])) * np.sin(pa_avg[j])
+                    b_min = 0
+                    if constant_b_min == None:
+                        b_min = b_mag_v[i, x_ind[min(j, x_ind_max - 1)]]
+                    else:
+                        b_min = constant_b_min
+
+                    sin_eq_pa = np.sqrt(b_min / (b_mirror_avg[j])) * np.sin(pa_avg[j])
                     eq_pa = np.arcsin(min(sin_eq_pa, 1))
                     eq_pitch_ang_v[i, display_x[j]:display_x[min(j + 1, len(display_x) - 1)] + 1] = eq_pa
 
