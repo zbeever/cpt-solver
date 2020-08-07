@@ -346,6 +346,7 @@ class solver:
             
         self.populated = True
         self.solved = False
+        self.loaded = False
         
         return
 
