@@ -2,8 +2,9 @@ import os
 import h5py
 import numpy as np
 
-from utils import format_bytes, flc
+from utils import format_bytes, flc, b_along_history
 from diagnostics import *
+
 
 class analyzer:
     '''
@@ -50,13 +51,20 @@ class analyzer:
     b_mag(numba=False, recalc=False)
         Returns the magnetic field strength (in T) at each point along each particle's trajectory.
 
-    v_par(numba=False, recalc=False)
+    b_gca(self, b_field=None, numba=False, recalc=False, recalc_all=False)
+        Returns the magnetic field strength (in T) at each point along each particle's trajectory.
 
-    v_perp(numba=False, recalc=False)
+    v_par(self, numba=False, recalc=False)
+        Returns the velocity (in m/s) parallel to the background magnetic field at each point along each particle's trajectory.
 
-    ke(numba=False, recalc=False)
+    v_perp(self, numba=False, recalc=False)
+        Returns the velocity (in m/s) perpendicular to the background magnetic field at each point along each particle's trajectory.
 
-    moment(numba=False, recalc=False)
+    ke(self, numba=False, recalc=False)
+        Returns the kinetic energy (in eV) of each particle at each point along its trajectory.
+
+    moment(self, numba=False, recalc=False)
+        Returns the magnetic moment (in MeV/G) of each particle at each point along its trajectory.
 
     pitch_ang(numba=False, recalc=False)
 
@@ -108,7 +116,8 @@ class analyzer:
 
         Parameters
         ----------
-        None
+        read_write : string, optional
+            The read/write mode for H5Py to use. Defaults to 'a', which is both readable and writable.
 
         Returns
         -------
@@ -133,7 +142,8 @@ class analyzer:
         if 'derived_quantities' not in self.f.keys() and read_write != 'r':
             self.f.create_group('derived_quantities')
 
-        self.dvqt = self.f['derived_quantities']
+        if 'derived_quantities' in self.f.keys():
+            self.dvqt = self.f['derived_quantities']
 
         return
 
@@ -457,18 +467,69 @@ class analyzer:
             return b_mag_v
 
 
+    def b_gca(self, b_field=None, numba=False, recalc=False, recalc_all=False):
+        '''
+        Returns the magnetic field strength (in T) at each point along each particle's trajectory.
+
+        Parameters
+        ----------
+        b_field(r, t=0.) : function, optional
+            The magnetic field function (this is obtained through the currying functions in fields.py). Accepts a
+            position (float[3]) and time (float). Returns the magnetic field vector (float[3]) at that point in spacetime.
+            Defaults to none (assumes the value is already calculated).
+
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+
+        recalc_all : bool, optional
+            Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
+
+        Returns
+        -------
+        b_gca_v : float[N, M, 3]
+            The magnetic field vector (in T) at each particle's guiding center location at each timestep.
+        '''
+
+        recalc = recalc if recalc_all == False else True
+
+        gca_v = self.__required(self.gca, recalc_all)
+        self.__open()
+
+        if b_field == None and ('b_gca' not in self.dvqt.keys() or recalc == True):
+            raise NameError('Cannot calculate the magnetic field at the guiding center without the magnetic field function.')
+
+        found_val, b_gca_v = self.__prepare('b_gca', self.bb.shape, recalc)
+
+        if found_val:
+            self.__close()
+            return b_gca_v
+        else:
+            b_gca_v = b_along_history(b_field, gca_v, self.tt[:])
+
+            self.dvqt['b_gca'][:] = b_gca_v
+            self.__close()
+            return b_gca_v
+
+
     def v_par(self, numba=False, recalc=False):
         '''
         Returns the velocity (in m/s) parallel to the background magnetic field at each point along each particle's trajectory.
 
         Parameters
         ----------
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
-        v_par_v (NxM numpy array): The velocity (in m/s) parallel to the background magnetic field at each particle's location at each timestep.
+        v_par_v : float[N, M]
+            The velocity (in m/s) parallel to the background magnetic field at each particle's location at each timestep.
         '''
 
         self.__open()
@@ -496,12 +557,16 @@ class analyzer:
 
         Parameters
         ----------
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
-        v_perp_v (NxM numpy array): The velocity (in m/s) perpendicular to the background magnetic field at each particle's location at each timestep.
+        v_perp_v : float[N, M]
+            The velocity (in m/s) perpendicular to the background magnetic field at each particle's location at each timestep.
         '''
 
         self.__open()
@@ -530,12 +595,16 @@ class analyzer:
 
         Parameters
         ----------
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
-        v_perp_v (NxM numpy array): The kinetic energy (in eV) of each particle at each timestep.
+        v_perp_v : float[N, M]
+            The kinetic energy (in eV) of each particle at each timestep.
         '''
 
         self.__open()
@@ -562,12 +631,16 @@ class analyzer:
 
         Parameters
         ----------
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
-        moment_v (NxM numpy array): The magnetic moment (in MeV/G) of each particle at each timestep.
+        moment_v : float[N, M]
+            The magnetic moment (in MeV/G) of each particle at each timestep.
         '''
 
         self.__open()
@@ -698,7 +771,7 @@ class analyzer:
             return gyrofreq_v
 
     
-    def eq_pitch_ang(self, b_field=None, unwrapped=False, recalc=False, recalc_all=False, constant_b_min=None):
+    def eq_pitch_ang(self, b_field=None, unwrapped=False, recalc=False, recalc_all=False, by_min_b=True, constant_b_min=None):
         '''
         Returns the equatorial pitch angle (in radians) of each particle at each point along its trajectory.
 
@@ -708,6 +781,9 @@ class analyzer:
         unwrapped (bool): Whether the equatorial pitch angle should be displayed from 0 to pi / 2 or unwrapped and displayed from 0 to pi.
         recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
         recalc_all (bool): Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
+
+        by_min_b : bool, optional
+            Whether a crossing should be marked by a point of minima B strength or by a minima in pitch angle. Defaults to true.
 
         constant_b_min : float, optional
             The minimum strength of the magnetic field (in T). Use to bypass the checking mechanism. This is useful for the Harris current sheet model. Defaults to None.
@@ -732,10 +808,9 @@ class analyzer:
             self.__close()
             return eq_pitch_ang_v
         else:
-            by_min_b = True
-            asym_eps = 4e-1
-            adb_eps = 1e-2
-            deg_eps = 3.5e-2
+            asym_eps = 5e-2 # The amount of asymmetry allowed between adjacent crossings at the beginning and end of each trajectory
+            adb_eps = 10 # The minimum value of kappa before a non-mirror-point is considered safe to use in the calculation of the equatorial pitch angle 
+            rad_eps = 3.5e-2 # The maximum deviation from 90 degrees
 
             # Find the well-defined mirror points
             mp_inds = np.diff(np.sign(pa_v - np.pi / 2), axis=1, append=0) != 0 # Get indices where the pitch angle crosses 90 degrees
@@ -784,7 +859,7 @@ class analyzer:
             x_inds[to_change_end, x_ind_minus_1[to_change_end]] = False
 
             # Get (possible) mirror points initially missed (pitch angles between 89 and 91 degrees)
-            mp_within_1_deg = np.abs(pa_v - np.pi / 2) < deg_eps
+            mp_within_1_deg = np.abs(pa_v - np.pi / 2) < rad_eps
 
             # Add missed mirror points at the beginning
             x_ind_0 = np.argmax(x_inds, axis=1)
@@ -804,7 +879,7 @@ class analyzer:
 
             for i in check_beg:
                 R_c = flc(b_field, self.rr[i, 0][0], self.tt[0])
-                if gyrorad_v[i, 0] / R_c < adb_eps:
+                if sqrt(R_c / gyrorad_v[i, 0]) > adb_eps:
                     mp_inds[i, 0] = True
 
             # Add points at the end whose regions show adiabatic behavior
@@ -813,7 +888,7 @@ class analyzer:
                     
             for i in check_end:
                 R_c = flc(b_field, self.rr[i, -1][0], self.tt[-1])
-                if gyrorad_v[i, -1] / R_c < adb_eps:
+                if sqrt(R_c / gyrorad_v[i, -1]) > adb_eps:
                     mp_inds[i, -1] = True
                     
             eq_pitch_ang_v = np.zeros((self.num_particles, self.steps))

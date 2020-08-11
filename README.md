@@ -1,8 +1,13 @@
-# Charged Particle Trajectory Solver
-Solver designed to calculate and plot the trajectory of charged particles in the presence of electric and magnetic fields.
+# Charged particle trajectory solver
+Solver designed to calculate and plot the trajectory and intrinsic quantities of charged particles in the presence of electric and magnetic fields.
 
-## Getting Started
-Navigate to the project directory using the terminal and run the file with `python core.py` The included code has comments that should make adding particles and changing the background fields self-explanatory.
+## Dependencies
+To use this package, you'll need
 
-## Prerequisites
-You'll need Numpy, Scipy, and Matplotlib. You'll also need the Python version of the Geopack library, maintained by Sheng Tian. You can install it using `pip install geopack`.
+* Numpy
+* Scipy
+* Numba
+* Matplotlib
+* H5py
+
+You'll also need the Numba modification of the Python version of the geopack library. You can find it at https://github.com/zbeever/ngeopack

@@ -2,11 +2,11 @@ import numpy as np
 from scipy import constants as sp
 from numba import njit, jit
 
-from geopack_numba import geopack as gp
-from geopack_numba import t89 as ext_t89
-from geopack_numba import t96 as ext_t96
-from geopack_numba import t01 as ext_t01
-from geopack_numba import t04 as ext_t04
+from ngeopack import geopack as gp
+from ngeopack import t89 as ext_t89
+from ngeopack import t96 as ext_t96
+from ngeopack import t01 as ext_t01
+from ngeopack import t04 as ext_t04
 
 from utils import Re, inv_Re
 
@@ -492,6 +492,9 @@ def evolving_harris_cs_model(b0x, b0z, L_cs, lambd=40):
     L_cs(t) : function
         The function describing the change in current sheet thickness (in m) over time.    
 
+    lambd : float, optional
+        The damping factor of the strengthening field. Reverts to the classical Harris model if set to None. Defaults to 40 (which forces mirroring at z ~ +-20 Re).
+
     Returns
     -------
     field(r, t=0.) : function
@@ -502,8 +505,11 @@ def evolving_harris_cs_model(b0x, b0z, L_cs, lambd=40):
     def field(r, t=0.):
         z = r[2]
         L = L_cs(t)
-
-        Bx = b0x * np.tanh(z / L) + np.exp(-lambd) * np.sinh(z * inv_Re)
+        
+        if lambd == None:
+            Bx = b0x * np.tanh(z / L)
+        else:
+            Bx = b0x * np.tanh(z / L) + np.exp(-lambd) * np.sinh(z * inv_Re)
         By = 0
         Bz = b0z
 

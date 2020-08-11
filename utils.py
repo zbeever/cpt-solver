@@ -1,13 +1,127 @@
 import numpy as np
+from datetime import datetime
+from calendar import monthrange
 import scipy.constants as sp
+from scipy.io import loadmat
 from numba import njit, prange
-
+from math import sqrt
 from matplotlib.gridspec import GridSpec
 from matplotlib import pyplot as plt
 
 Re = 6.371e6     # m
 inv_Re = 1. / Re # m^-1
 
+
+def get_txx_params(qin_denton_filename, omni_filename, timestamp, model='t04'):
+    '''
+    Given the 1-minute datasets available from http://virbo.org/QinDenton and https://omniweb.gsfc.nasa.gov/form/omni_min.html,
+    parses the data for input to the Tsyganenko models.
+
+    Parameters
+    ----------
+    qin_denton_filename : string
+        The path to the Qin-Denton file. This should be the 1 minute increment dataset. Do not include the extension. The format should be .mat.
+
+    omni_filename : string
+        The path to the OMNI files. This should include the x, y, and z components of the solar wind velocity. Do not include the extension. Their formats should be .lst and .fmt.
+
+    timestamp : datetime obj
+        The data and time to consider.
+
+    model : string, optional
+        The model for which to format the parameters. Use either 't89', 't96', 't01', or 't04'. Defaults to 't04'.
+
+    Returns
+    -------
+    parmod : int / float[10]
+        The parameter array to be input into the Tsyganenko model. For the T89 model this is an integer. For all the others this is a 10 element list of floats.
+
+    ut : int
+        The time in seconds since 1/1/1970.
+
+    v_sw : float[3]
+        The velocity vector for the solar wind.
+
+    '''
+
+    data = loadmat(qin_denton_filename + '.mat')
+    prev_days = 0
+
+    for i in range(timestamp.month - 1):
+        prev_days += monthrange(timestamp.year, i + 1)[1]
+
+    doy = prev_days + timestamp.day
+
+    ind_for_year = np.argwhere(data['Year'] == timestamp.year)[:, 0]
+    ind_for_month = np.argwhere(data['DOY'][ind_for_year] == doy)[:, 0]
+    ind_for_hour = np.argwhere(data['hour'][ind_for_year][ind_for_month] == timestamp.hour)[:, 0]
+    ind_for_min = ind_for_year[ind_for_month][ind_for_hour][timestamp.minute]
+
+    t0 = datetime(1970, 1, 1)
+    ut = (timestamp - t0).total_seconds()
+
+    v_sw_data = open(omni_filename + '.lst')
+    v_sw_form = open(omni_filename + '.fmt')
+
+    v_inds = [-1, -1, -1]
+
+    for line in v_sw_form:
+        for i, dim in enumerate(['x', 'y', 'z']):
+            is_line = line.find(f'V{dim} Velocity')
+            if is_line >= 0:
+                v_inds[i] = int(line.split()[0]) - 1
+                break
+                
+    v_sw_form.close()
+    v_sw = np.zeros(3)
+
+    for line in v_sw_data:
+        line_data = line.split()
+        
+        year   = int(line_data[0])
+        line_doy    = int(line_data[1])
+        hour   = int(line_data[2])
+        minute = int(line_data[3])
+        
+        if year == timestamp.year and line_doy == doy and hour == timestamp.hour and minute == timestamp.minute:
+            v_sw[0] = float(line_data[v_inds[0]])
+            v_sw[1] = float(line_data[v_inds[1]])
+            v_sw[2] = float(line_data[v_inds[2]])
+            break
+
+    v_sw_data.close()
+
+    kp    = int(round(data['Kp'][ind_for_min][0]))
+
+    pdyn  = data['Pdyn'][ind_for_min][0]
+    dst   = data['Dst'][ind_for_min][0]
+    byimf = data['ByIMF'][ind_for_min][0]
+    bzimf = data['BzIMF'][ind_for_min][0]
+
+    g1    = data['G1'][ind_for_min][0]
+    g2    = data['G2'][ind_for_min][0]
+
+    w1    = data['W1'][ind_for_min][0]
+    w2    = data['W2'][ind_for_min][0]
+    w3    = data['W3'][ind_for_min][0]
+    w4    = data['W4'][ind_for_min][0]
+    w5    = data['W5'][ind_for_min][0]
+    w6    = data['W6'][ind_for_min][0]
+
+    if model == 't89':
+        return kp, ut, v_sw
+    elif model == 't96':
+        parmod = np.array([pdyn, dst, byimf, bzimf, 0., 0., 0., 0., 0., 0.])
+        return parmod, ut, v_sw
+    elif model == 't01':
+        parmod = np.array([pdyn, dst, byimf, bzimf, g1, g2, 0., 0., 0., 0.])
+        return parmod, ut, v_sw
+    elif model == 't04':
+        parmod = np.array([pdyn, dst, byimf, bzimf, w1, w2, w3, w4, w5, w6])
+        return parmod, ut, v_sw
+    else:
+        raise NameError('Model type not recognized. Use t89/t96/t01/t04.')
+        
 
 def format_bytes(size):
     '''
@@ -372,7 +486,7 @@ def flc(field, r, t=0., eps=1e-6):
     J[:, 0] = (fx1 - fx0) / (2 * eps)
     J[:, 1] = (fy1 - fy0) / (2 * eps)
     J[:, 2] = (fz1 - fz0) / (2 * eps)
-    
+
     return (1.0 / np.linalg.norm(np.dot(J, b)))
 
 
@@ -633,7 +747,7 @@ def adiabaticity(field, rr, K, t=0., m=sp.m_e, q=-sp.e):
     hist_new = np.zeros((len(rr[:, 0])))
 
     gamma_v = 1 + eV_to_J(K) / (m * sp.c**2)
-    v = (sp.c / gamma_v) * np.sqrt(gamma_v**2 - 1)
+    v = (sp.c / gamma_v) * sqrt(gamma_v**2 - 1)
 
     for i in prange(len(rr[:, 0])):
         b = field(rr[i, :])
@@ -641,7 +755,7 @@ def adiabaticity(field, rr, K, t=0., m=sp.m_e, q=-sp.e):
         rho_0 = gamma_v * m * v / (abs(q) * np.linalg.norm(b))
         
         R_c = flc(field, rr[i, :])
-        hist_new[i] = rho_0 / R_c
+        hist_new[i] = sqrt(R_c / rho_0)
 
     return hist_new
 

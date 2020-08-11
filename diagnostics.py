@@ -291,7 +291,7 @@ def gca(b_field, position, velocity, mass, charge):
     '''
 
     num_particles = np.shape(position)[0]
-    steps         = np.shape(position)[1]
+    steps = np.shape(position)[1]
 
     gca_v = np.zeros((num_particles, steps, 3))
 
