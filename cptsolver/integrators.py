@@ -2,7 +2,7 @@ import numpy as np
 import scipy.constants as sp
 from numba import njit
 
-from utils import dot, cross
+from cptsolver.utils import dot, cross
 
 
 def relativistic_boris(e_field, b_field):

@@ -7,7 +7,7 @@ from matplotlib import colors as col
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib as mpl
 
-from utils import Re, inv_Re
+from cptsolver.utils import Re, inv_Re
 
 
 def format_plots(dpi=150, use_tex=True, font_type='serif', font_family='Computer Modern', font_size=15, colormap='plasma'):
@@ -42,13 +42,13 @@ def format_plots(dpi=150, use_tex=True, font_type='serif', font_family='Computer
     rc('figure', dpi=dpi)
     rc('font', **{'family': font_type, font_type: [font_family], 'size': font_size})
     rc('text', usetex=use_tex)
-    rc('axes', prop_cycle=cycler(color=plt.get_cmap(colormap)(np.linspace(0, 1, 10))))
+    rc('axes', prop_cycle=cycler(color=plt.get_cmap(colormap)(np.linspace(0, 1, 15))))
     rc('image', cmap=colormap)
 
     return
 
 
-def plot_field(field, h_axis, v_axis, x_lims, y_lims, t=0., gsm=True, nodes=20, labels=('x ($R_E$)', 'z ($R_E$)'), title='Field Lines', fig=None, ax=None, size=(5, 5)):
+def plot_field(field, h_axis, v_axis, h_lim, v_lim, t=0., in_re=True, nodes=20, labels=('Horizontal Axis', 'Vertical Axis', 'Strength (T)'), title='Field Lines', fig=None, ax=None, size=(5, 5)):
     '''
     Creates a plot of the integral curves of a field along a plane passing through the origin.
 
@@ -59,36 +59,48 @@ def plot_field(field, h_axis, v_axis, x_lims, y_lims, t=0., gsm=True, nodes=20, 
         position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
 
     h_axis : float[3]
+        Vector lying along the horizontal axis.
 
     v_axis : float[3]
+        Vector lying along the vertical axis.
 
-    x_lims : float[2]
+    h_lims : float[2]
+        The horizontal axis limits.
 
-    y_lims : float[2]
+    v_lims : float[2]
+        The vertical axis limits.
 
     t : float, optional
+        The time at which to evaluate the field. Defaults to 0.
 
-    gsm : bool, optional
+    in_re : bool, optional
+        Whether the limits are in terms of Earth radii. Defaults to true.
 
     nodes : int, optional
+        The number of field samples to use. Defaults to 20.
 
-    labels : (string, string), optional
+    labels : (string, string, string), optional
+        The horizontal axis, vertical axis, and colorbar labels, respectively. Defaults to ('Horizontal Axis', 'Vertical Axis', 'Strength (T)').
 
     title : string, optional
+        The title. Defaults to 'Field Lines'.
 
     fig : matplotlib figure obj, optional
+        Specify if this plot is to use an external figure. Useful for creating subplots. Defaults to none.
 
     ax : matplotlib axis obj, optional
+        Specify if this plot is to use an external set of axes. Useful for creating subplots. Defaults to none.
 
     size : (float, float), optional
+        The size of the produced plot. Defaults to (5, 5).
 
     Returns
     -------
     None
     '''
 
-    x = np.linspace(x_lims[0], x_lims[1], nodes)
-    y = np.linspace(y_lims[0], y_lims[1], nodes)
+    x = np.linspace(h_lim[0], h_lim[1], nodes)
+    y = np.linspace(v_lim[0], v_lim[1], nodes)
 
     h_axis = h_axis / np.linalg.norm(h_axis)
     v_axis = v_axis / np.linalg.norm(v_axis)
@@ -99,10 +111,10 @@ def plot_field(field, h_axis, v_axis, x_lims, y_lims, t=0., gsm=True, nodes=20, 
     for i in range(nodes):
         for j in range(nodes):
             vec_l = np.zeros(3)
-            if not gsm:
-                vec_l = field(np.asarray(h_axis * X[i][j] + v_axis * Y[i][j]), t)
-            else:
+            if in_re:
                 vec_l = field(np.asarray((h_axis * X[i][j] + v_axis * Y[i][j]) * Re), t)
+            else:
+                vec_l = field(np.asarray(h_axis * X[i][j] + v_axis * Y[i][j]), t)
             U[i][j] = np.dot(vec_l, h_axis)
             V[i][j] = np.dot(vec_l, v_axis)
 
@@ -115,10 +127,10 @@ def plot_field(field, h_axis, v_axis, x_lims, y_lims, t=0., gsm=True, nodes=20, 
     
     ax.streamplot(X, Y, U, V, color=np.log10(color), linewidth=1, cmap=plt.get_cmap(plt.rcParams['image.cmap']), density=2, arrowstyle='wedge', arrowsize=1.)
     cbar = fig.colorbar(mpl.cm.ScalarMappable(norm=col.LogNorm(vmin=max(np.amin(color), 1e-12), vmax=np.amax(color)), cmap=plt.get_cmap(plt.rcParams['image.cmap'])), ax=ax, fraction=0.046, pad=0.04)
-    cbar.ax.set_ylabel('Strength (T)', rotation=-90, va='bottom')
+    cbar.ax.set_ylabel(labels[2], rotation=-90, va='bottom')
 
-    ax.set_xlim(x_lims[0], x_lims[1])
-    ax.set_ylim(y_lims[0], y_lims[1])
+    ax.set_xlim(h_lim[0], h_lim[1])
+    ax.set_ylim(v_lim[0], v_lim[1])
 
     ax.set_xlabel(labels[0])
     ax.set_ylabel(labels[1])
@@ -140,6 +152,43 @@ def plot_distribution(history, time_ind, bins='fd', log=False, avg=False, x_lim=
 
     Parameters
     ----------
+    history : float[N, M]
+        A history of a particular quantity. The first index denotes the particle and the second the timestep.
+
+    time_ind : int / int[L]
+        The time index for which to plot the distribution. If this is a list, it overlays L distributions unless avg is set to true.
+        In this final case, it averages the distribution between time_ind[0] and time_ind[1].
+
+    bins : int / string, optional
+        The binning strategy. Can be a number for uniform binning or a string such as 'fd' or 'auto'. Defaults to 'fd'.
+        See https://matplotlib.org/3.3.0/api/_as_gen/matplotlib.pyplot.hist.html for more information.
+
+    log : bool, optional
+        Whether the distribution should be shown on a logarithmic scale. Defaults to false.
+
+    avg : bool, optional
+        If time_ind is a list, averages the distribution between time_ind[0] and time_ind[1]. Defaults to false.
+
+    x_lim : float[2], optional
+        The horizontal axis limits. Defaults to none, in which case the limits are autoscaled.
+
+    y_lim : float[2], optional
+        The vertical axis limits. Defaults to none, in which case the limits are autoscaled.
+
+    labels : (string, string), optional
+        The horizontal and vertical axis labels, respectively. Defaults to ('Quantity', 'Number Density (AU)').
+
+    title : string, optional
+        The title. Defaults to 'Distribution'.
+
+    fig : matplotlib figure obj, optional
+        Specify if this plot is to use an external figure. Useful for creating subplots. Defaults to none.
+
+    ax : matplotlib axis obj, optional
+        Specify if this plot is to use an external set of axes. Useful for creating subplots. Defaults to none.
+
+    size : (float, float), optional
+        The size of the produced plot. Defaults to (5, 5).
 
     Returns
     -------
@@ -189,6 +238,56 @@ def plot_evolution(history, time, already_distribution=False, bins=100, log=True
 
     Parameters
     ----------
+    history : float[N, M]
+        A history of a particular quantity. The first index denotes the particle and the second the timestep.
+
+    time : int[M]
+        A time for each timestep of the history.
+
+    already_distribution : bool, optional
+        Whether the quantity is already a distribution (in the case of diffusion and transport coefficients). Defaults to false.
+
+    bins : int, optional
+        The number of bins to use when creating the distribution. Defaults to 100.
+
+    log : bool, optional
+        Whether the distribution should be shown on a logarithmic scale. Defaults to true.
+
+    min_val : float, optional
+        If the distribution is shown logarithmically, this is the minimum value the scale will use. 
+
+    decimate : int, optional
+        If set to L, displays the distribution every L timesteps. Defaults to 1.
+
+    avg : bool, optional
+        If decimate is greater than 1, averages each distribution between successive timesteps. Defaults to false.
+
+    x_lim : float[2], optional
+        The horizontal axis limits. Defaults to none, in which case the limits are autoscaled.
+
+    y_lim : float[2], optional
+        The vertical axis limits. Defaults to none, in which case the limits are autoscaled.
+
+    x_ticks : int, optional
+        The number of evenly spaced horizontal tickmarks. Defualts to 5.
+
+    y_ticks : int, optional
+        The number of evenly spaced vertical tickmarks. Defaults to 5.
+
+    labels : (string, string, string), optional
+        The horizontal axis, vertical axis, and colorbar labels, respectively. Defaults to ('Time (s)', 'Quantity', 'Number Density (AU)').
+
+    title : string, optional
+        The title. Defaults to 'Evolution'.
+
+    fig : matplotlib figure obj, optional
+        Specify if this plot is to use an external figure. Useful for creating subplots. Defaults to none.
+
+    ax : matplotlib axis obj, optional
+        Specify if this plot is to use an external set of axes. Useful for creating subplots. Defaults to none.
+
+    size : (float, float), optional
+        The size of the produced plot. Defaults to (5, 5).
 
     Returns
     -------
@@ -259,6 +358,42 @@ def plot_graph(history, time, particle_ind, log=False, avg=False, x_lim=None, y_
 
     Parameters
     ----------
+    history : float[N, M]
+        A history of a particular quantity. The first index denotes the particle and the second the timestep.
+
+    time : int[M]
+        A time for each timestep of the history.
+
+    particle_ind : int / int[L]
+        The particle index for which to plot the graph. If this is a list, it overlays L graphs unless avg is set to true.
+        In this final case, it averages the graph over particles between particle_ind[0] and particle_ind[1].
+
+    log : bool, optional
+        Whether the graph should be shown on a logarithmic scale. Defaults to false.
+
+    avg : bool, optional
+        If particle_ind is a list, averages the graph over particles between particle_ind[0] and particle_ind[1]. Defaults to false.
+
+    x_lim : float[2], optional
+        The horizontal axis limits. Defaults to none, in which case the limits are autoscaled.
+
+    y_lim : float[2], optional
+        The vertical axis limits. Defaults to none, in which case the limits are autoscaled.
+
+    labels : (string, string), optional
+        The horizontal and vertical axis labels, respectively. Defaults to ('Time (s)', 'Quantity').
+
+    title : string, optional
+        The title. Defaults to 'Graph'.
+
+    fig : matplotlib figure obj, optional
+        Specify if this plot is to use an external figure. Useful for creating subplots. Defaults to none.
+
+    ax : matplotlib axis obj, optional
+        Specify if this plot is to use an external set of axes. Useful for creating subplots. Defaults to none.
+
+    size : (float, float), optional
+        The size of the produced plot. Defaults to (5, 5).
 
     Returns
     -------
@@ -308,10 +443,58 @@ def plot_graph(history, time, particle_ind, log=False, avg=False, x_lim=None, y_
 
 def plot_shared_graph(history_left, history_right, time, particle_ind, log_left=False, log_right=False, avg=False, x_lim=None, y_lim_left=None, y_lim_right=None, labels=('Time (s)', 'Left Quantity', 'Right Quantity'), title='Graph', color_separation=5, fig=None, ax=None, size=(5, 5)):
     '''
-    Plots two quantity over time for specific particles. Alternatively, plots the average of the two quantities across a range of particles.  
+    Plots two quantities over time for specific particles. Alternatively, plots the average of the two quantities across a range of particles.  
 
     Parameters
     ----------
+    history_left : float[N, M]
+        A history of a particular quantity to use the left spine as its vertical axis. The first index denotes the particle and the second the timestep.
+
+    history_right : float[N, M]
+        A history of a particular quantity to use the right spine as its vertical axis. The first index denotes the particle and the second the timestep.
+
+    time : int[M]
+        A time for each timestep of the histories.
+
+    particle_ind : int / int[L]
+        The particle index for which to plot the graph. If this is a list, it overlays L graphs unless avg is set to true.
+        In this final case, it averages the graph over particles between particle_ind[0] and particle_ind[1].
+
+    log_left : bool, optional
+        Whether the left graph should be shown on a logarithmic scale. Defaults to false.
+
+    log_right : bool, optional
+        Whether the right graph should be shown on a logarithmic scale. Defaults to false.
+
+    avg : bool, optional
+        If particle_ind is a list, averages the graph over particles between particle_ind[0] and particle_ind[1]. Defaults to false.
+
+    x_lim : float[2], optional
+        The horizontal axis limits. Defaults to none, in which case the limits are autoscaled.
+
+    y_lim_left : float[2], optional
+        The left vertical axis limits. Defaults to none, in which case the limits are autoscaled.
+
+    y_lim_right : float[2], optional
+        The right vertical axis limits. Defaults to none, in which case the limits are autoscaled.
+
+    labels : (string, string, string), optional
+        The horizontal and two vertical axis labels, respectively. Defaults to ('Time (s)', 'Quantity').
+
+    title : string, optional
+        The title. Defaults to 'Graph'.
+
+    color_separation : int, optional
+        The difference in color cycles between the left and right graphs. Defaults to 5.
+
+    fig : matplotlib figure obj, optional
+        Specify if this plot is to use an external figure. Useful for creating subplots. Defaults to none.
+
+    ax : matplotlib axis obj, optional
+        Specify if this plot is to use an external set of axes. Useful for creating subplots. Defaults to none.
+
+    size : (float, float), optional
+        The size of the produced plot. Defaults to (5, 5).
 
     Returns
     -------
@@ -400,6 +583,41 @@ def plot_3d(history, particle_ind, elev, azim, x_lim=None, y_lim=None, z_lim=Non
 
     Parameters
     ----------
+    history : float[N, M, 3]
+        A history of a particular 3D quantity. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    particle_ind : int / int[L]
+        The particle index for which to plot the graph. If this is a list, it overlays L graphs.
+
+    elev : float
+        The elevation or altitude angle of the viewport (in deg).
+
+    azim : float
+        The azimuthal angle of the viewport (in deg).
+
+    x_lim : float[2], optional
+        The x-axis limits. Defaults to none, in which case the limits are autoscaled.
+
+    y_lim : float[2], optional
+        The y-axis limits. Defaults to none, in which case the limits are autoscaled.
+
+    z_lim : float[2], optional
+        The z-axis limits. Defaults to none, in which case the limits are autoscaled.
+
+    labels : (string, string, string), optional
+        The x-axis, y-axis, and z-axis labels, respectively. Defaults to (r'$x_{GSM}$ ($R_E$)', r'$y_{GSM}$ ($R_E$)', r'$z_{GSM}$ ($R_E$)').
+
+    title : string, optional
+        The title. Defaults to 'Graph'.
+
+    fig : matplotlib figure obj, optional
+        Specify if this plot is to use an external figure. Useful for creating subplots. Defaults to none.
+
+    ax : matplotlib axis obj, optional
+        Specify if this plot is to use an external set of axes. Useful for creating subplots. Defaults to none.
+
+    size : (float, float), optional
+        The size of the produced plot. Defaults to (5, 5).
 
     Returns
     -------

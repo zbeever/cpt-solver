@@ -11,11 +11,13 @@ def mag(quantity):
 
     Parameters
     ----------
-    quantity (NxMx3 numpy array): A history of the quantity. The first index denotes the particle, the second the timestep, and the third the dimension.
+    quantity : float[N, M, 3]
+        A history of the quantity. The first index denotes the particle, the second the timestep, and the third the dimension.
 
     Returns
     -------
-    mag_v (NxM numpy array): The magnitude of the quantity at each timestep for each particle.
+    mag_v : float[N, M]
+        The magnitude of the quantity at each timestep for each particle.
     '''
 
     num_particles = np.shape(quantity)[0]
@@ -37,12 +39,16 @@ def v_par(velocity, b_field):
 
     Parameters
     ----------
-    velocity (NxMx3 numpy array): A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
-    b_field (NxMx3 numpy array): A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
+    velocity : float[N, M, 3]
+        A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    b_field : float[N, M, 3]
+        A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
 
     Returns
     -------
-    v_par_v (NxM numpy array): The velocity parallel to the background magnetic field at each timestep for each particle.
+    v_par_v : float[N, M]
+        The velocity parallel to the background magnetic field at each timestep for each particle.
     '''
 
     num_particles = np.shape(velocity)[0]
@@ -70,12 +76,16 @@ def v_perp(velocity, b_field):
 
     Parameters
     ----------
-    velocity (NxMx3 numpy array): A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
-    b_field (NxMx3 numpy array): A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
+    velocity : float[N, M, 3]
+        A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    b_field : float[N, M, 3]
+        A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
 
     Returns
     -------
-    v_perp_v (NxM numpy array): The velocity perpendicular to the background magnetic field at each timestep for each particle.
+    v_perp_v : float[N, M]
+        The velocity perpendicular to the background magnetic field at each timestep for each particle.
     '''
 
     num_particles = np.shape(velocity)[0]
@@ -103,12 +113,16 @@ def ke(velocity, mass):
 
     Parameters
     ----------
-    velocity (NxMx3 numpy array): A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
-    mass (N numpy array): A list of particle masses.
+    velocity : float[N, M, 3]
+        A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    mass : float[N]
+        A list of particle masses.
 
     Returns
     -------
-    ke_v (M numpy array): The kinetic energy (in eV) at each timestep for each particle.
+    ke_v : float[N, M]
+        The kinetic energy (in eV) at each timestep for each particle.
     '''
 
     num_particles = np.shape(velocity)[0]
@@ -132,12 +146,19 @@ def moment(velocity, b_field, mass):
 
     Parameters
     ----------
-    v_perp (NxM numpy array): A history of particle velocities perpendicular to the background magnetic field. The first index denotes the particle and the second the timestep.
-    b_magnitude (NxM numpy array): A history of background magnetic field strengths. The first index denotes the particle and the second the timestep.
+    velocity : float[N, M, 3]
+        A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    b_field : float[N, M, 3]
+        A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    mass : float[N]
+        A list of particle masses.
 
     Returns
     -------
-    moment_v (NxM numpy array): The magnetic moment (in MeV/G) at each timestep for each particle.
+    moment_v : float[N, M]
+        The magnetic moment (in MeV/G) at each timestep for each particle.
     '''
 
     num_particles = np.shape(velocity)[0]
@@ -167,12 +188,16 @@ def pitch_ang(velocity, b_field):
 
     Parameters
     ----------
-    velocity (NxMx3 numpy array): A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
-    b_field (NxMx3 numpy array): A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
+    velocity : float[N, M, 3]
+        A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    b_field : float[N, M, 3]
+        A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
 
     Returns
     -------
-    pitch_ang_v (NxM numpy array): The pitch angle (in radians) at each timestep for each particle.
+    pitch_ang_v : float[N, M]
+        The pitch angle (in radians) at each timestep for each particle.
     '''
 
     num_particles = np.shape(velocity)[0]
@@ -201,14 +226,22 @@ def gyrorad(velocity, b_field, mass, charge):
 
     Parameters
     ----------
-    velocity (NxMx3 numpy array): A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
-    b_field (NxMx3 numpy array): A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
-    mass (N numpy array): A list of particle masses.
-    charge (M numpy array): A list of particle charges.
+    velocity : float[N, M, 3]
+        A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    b_field : float[N, M, 3]
+        A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    mass : float[N]
+        A list of particle masses.
+
+    charge : float[M]
+        A list of particle charges.
 
     Returns
     -------
-    gyrorad_v (NxM numpy array): The gyroradius (in m) at each timestep for each particle.
+    gyrorad_v : float[N, M]
+        The gyroradius (in m) at each timestep for each particle.
     '''
 
     num_particles = np.shape(velocity)[0]
@@ -243,14 +276,22 @@ def gyrofreq(velocity, b_field, mass, charge):
 
     Parameters
     ----------
-    velocity (NxMx3 numpy array): A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
-    b_field (NxMx3 numpy array): A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
-    mass (N numpy array): A list of particle masses.
-    charge (M numpy array): A list of particle charges.
+    velocity : float[N, M, 3]
+        A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    b_field : float[N, M, 3]
+        A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    mass : float[N]
+        A list of particle masses.
+
+    charge : float[M]
+        A list of particle charges.
 
     Returns
     -------
-    gyrofreq_v (NxM numpy array): The gyrofrequency (in 1/s) at each timestep for each particle.
+    gyrofreq_v : float[N, M]
+        The gyrofrequency (in 1/s) at each timestep for each particle.
     '''
 
     num_particles = np.shape(velocity)[0]
@@ -279,15 +320,25 @@ def gca(b_field, position, velocity, mass, charge):
 
     Parameters
     ----------
-    b_field (NxMx3 numpy array): A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
-    position (NxMx3 numpy array): A history of particle locations. The first index denotes the particle, the second the timestep, and the third the dimension.
-    velocity (NxMx3 numpy array): A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
-    mass (N numpy array): A list of particle masses.
-    charge (N numpy array): A list of particle charges.
+    b_field : float[N, M, 3]
+        A history of background magnetic field vectors. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    position : float[N, M, 3]
+         A history of particle locations. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    velocity : float[N, M, 3]
+        A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    mass : float[N]
+        A list of particle masses.
+
+    charge : float[M]
+        A list of particle charges.
 
     Returns
     -------
-    gca_v (NxMx3 numpy array): The guiding center trajectory for each particle.
+    gca_v : float[N, M, 3]
+        The guiding center trajectory for each particle.
     '''
 
     num_particles = np.shape(position)[0]
@@ -322,15 +373,25 @@ def diffusion(quantity, time, delta_t, bins=100):
 
     Parameters
     ----------
-    quantity (NxM numpy array): A history of the quantity to use. The first index denotes the particle and the second the timestep.
-    time (M numpy array): An array of timesteps associated with the history.
-    delta_t (float): The timestep over which diffusion will be calculated.
-    bins (int): The number of bins to use. Defaults to 100.
+    quantity : float[N, M]
+        A history of the quantity to use. The first index denotes the particle and the second the timestep.
+
+    time : float[M]
+        An array of timesteps associated with the history.
+
+    delta_t : float
+        The timestep over which diffusion will be calculated.
+
+    bins : int, optional
+        The number of uniform bins to use. Defaults to 100.
 
     Returns
     -------
-    bins_v (BINS numpy array): The bin labels.
-    diffusion_v (BINSxM numpy array): The diffusion coefficient at each timestep.
+    bins_v : float[BINS]
+        The bin boundaries.
+
+    diffusion_v : float[BINS, M]
+        The diffusion coefficient at each timestep.
     '''
 
     num_particles = np.shape(quantity)[1]
@@ -374,15 +435,25 @@ def transport(quantity, time, delta_t, bins=100):
 
     Parameters
     ----------
-    quantity (NxM numpy array): A history of the quantity to use. The first index denotes the particle and the second the timestep.
-    time (M numpy array): An array of timesteps associated with the history.
-    delta_t (float): The timestep over which transport will be calculated.
-    bins (int): The number of bins to use. Defaults to 100.
+    quantity : float[N, M]
+        A history of the quantity to use. The first index denotes the particle and the second the timestep.
+
+    time : float[M]
+        An array of timesteps associated with the history.
+
+    delta_t : float
+        The timestep over which transport will be calculated.
+
+    bins : int, optional
+        The number of uniform bins to use. Defaults to 100.
 
     Returns
     -------
-    bins_v (BINS numpy array): The bin labels.
-    diffusion_v (BINSxM numpy array): The transport coefficient at each timestep.
+    bins_v : float[BINS]
+        The bin boundaries.
+
+    diffusion_v : float[BINS, M]
+        The transport coefficient at each timestep.
     '''
 
     num_particles = np.shape(quantity)[1]

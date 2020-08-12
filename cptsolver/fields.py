@@ -8,7 +8,7 @@ from ngeopack import t96 as ext_t96
 from ngeopack import t01 as ext_t01
 from ngeopack import t04 as ext_t04
 
-from utils import Re, inv_Re
+from cptsolver.utils import Re, inv_Re
 
 
 def zero_field():

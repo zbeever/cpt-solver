@@ -7,9 +7,9 @@ import numpy as np
 import scipy.constants as sp
 from numba import njit, prange
 
-from integrators import relativistic_boris
-from distributions import delta
-from utils import Re, field_line, b_along_path, velocity_vec, solve_traj, format_bytes
+from cptsolver.integrators import relativistic_boris
+from cptsolver.distributions import delta
+from cptsolver.utils import Re, field_line, b_along_path, velocity_vec, solve_traj, format_bytes
 
 
 class solver:

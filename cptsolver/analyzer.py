@@ -2,8 +2,8 @@ import os
 import h5py
 import numpy as np
 
-from utils import format_bytes, flc, b_along_history
-from diagnostics import *
+from cptsolver.utils import format_bytes, flc, b_along_history
+from cptsolver.diagnostics import *
 
 
 class analyzer:
@@ -67,22 +67,31 @@ class analyzer:
         Returns the magnetic moment (in MeV/G) of each particle at each point along its trajectory.
 
     pitch_ang(numba=False, recalc=False)
+        Returns the pitch angle (in radians) of each particle at each point along its trajectory.
 
     gyrorad(numba=False, recalc=False)
+        Returns the gyroradius (in m) of each particle at each point along its trajectory.
 
     gyrofreq(numba=False, recalc=False)
+        Returns the gyrofreq (in 1/s) of each particle at each point along its trajectory.
 
     eq_pitch_ang(b_field=None, unwrapped=False, recalc=False, recalc_all=False)
+        Returns the equatorial pitch angle (in radians) of each particle at each point along its trajectory.
 
     gca(numba=False, recalc=False)
+        Returns the guiding center of each particle along a history.
 
     moment_diff(delta_t=None, bins=100, numba=False, recalc=False, recalc_all=False)
+        Returns the magnetic moment diffusion coefficient along a history.
 
     eq_pitch_ang_diff(delta_t=None, bins=100, numba=False, recalc=False, recalc_all=False)
+        Returns the equatorial pitch angle diffusion coefficient along a history.
 
     moment_trans(delta_t=None, bins=100, numba=False, recalc=False, recalc_all=False)
+        Returns the magnetic moment transport coefficient along a history.
 
     eq_pitch_ang_trans(delta_t=None, bins=100, numba=False, recalc=False, recalc_all=False)
+        Returns the equatorial pitch angle transport coefficient along a history.
     '''
 
     def __init__(self, filename):
@@ -248,6 +257,39 @@ class analyzer:
 
         self.dvqt.create_dataset(label, shape, maxshape=tuple([None for k in range(len(shape))]), dtype='float', compression='gzip')
         return False, None
+
+
+    def set(self, label, data):
+        '''
+        Creates (or overwrites) a dataset with an external array. This is dangerous! Only use this if you are certain of what you're doing.
+
+        Parameters
+        ----------
+        label : string
+            The label of the dataset.
+
+        data : float[N, ..., N]
+            The array to use.
+
+        Returns
+        -------
+        None
+        '''
+
+        if input(f'Are you sure you want to do this? (Y/N) ') != 'Y':
+            return
+
+        shape = np.shape(data)
+
+        self.__open()
+        self.__prepare(label, shape, True)
+
+        self.dvqt[label] = data
+
+        self.__close()
+        print('Successfully wrote data to the file.')
+
+        return
 
 
     def position(self):
@@ -672,12 +714,16 @@ class analyzer:
 
         Parameters
         ----------
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
-        pitch_v (NxM numpy array): The pitch angle (in radians) of each particle at each timestep.
+        pitch_v : float[N, M]
+            The pitch angle (in radians) of each particle at each timestep.
         '''
 
         self.__open()
@@ -708,12 +754,16 @@ class analyzer:
 
         Parameters
         ----------
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
-        gyrorad_v (NxM numpy array): The gyroradius (in m) of each particle at each timestep.
+        gyrorad_v : float[N, M]
+            The gyroradius (in m) of each particle at each timestep.
         '''
 
         self.__open()
@@ -745,12 +795,16 @@ class analyzer:
 
         Parameters
         ----------
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
-        gyrofreq_v (NxM numpy array): The gyrofrequency (in 1/s) of each particle at each timestep.
+        gyrofreq_v : float[N, M]
+            The gyrofrequency (in 1/s) of each particle at each timestep.
         '''
 
         self.__open()
@@ -777,13 +831,23 @@ class analyzer:
 
         Parameters
         ----------
-        b_field(r, t): The magnetic field function (this is obtained through the currying functions in fields.py). This is required for checking adiabaticity.
-        unwrapped (bool): Whether the equatorial pitch angle should be displayed from 0 to pi / 2 or unwrapped and displayed from 0 to pi.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
-        recalc_all (bool): Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
+        b_field(r, t=0.) : function, optional
+            The magnetic field function (this is obtained through the currying functions in fields.py). Accepts a
+            position (float[3]) and time (float). Returns the magnetic field vector (float[3]) at that point in spacetime.
+            This defaults to none, assuming the quantity is already calculated. It is required if the quantity has yet to be
+            calculated.
+
+        unwrapped : bool, optional
+            Whether the equatorial pitch angle should be displayed from 0 to pi / 2 or unwrapped and displayed from 0 to pi.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+
+        recalc_all : bool, optional
+            Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
 
         by_min_b : bool, optional
-            Whether a crossing should be marked by a point of minima B strength or by a minima in pitch angle. Defaults to true.
+            Whether a crossing should be marked by a point of minimum |B| or by a minimum in pitch angle. Defaults to true.
 
         constant_b_min : float, optional
             The minimum strength of the magnetic field (in T). Use to bypass the checking mechanism. This is useful for the Harris current sheet model. Defaults to None.
@@ -948,12 +1012,16 @@ class analyzer:
 
         Parameters
         ----------
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
 
         Returns
         -------
-        gca_v (NxMx3 numpy array): The guiding center of each particle at each timestep.
+        gca_v : float[N, M, 3]
+            The guiding center of each particle at each timestep.
         '''
 
         self.__open()
@@ -986,16 +1054,29 @@ class analyzer:
 
         Parameters
         ----------
-        delta_t (float): The timestep over which diffusion will be calculated.
-        bins (int): The number of bins to use. Defaults to 100.
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
-        recalc_all (bool): Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
+        delta_t : float, optional
+            The timestep over which diffusion will be calculated. This defaults to none, assuming the quantity is already calculated.
+            This is required if the quantity has yet to be calculated.
+
+        bins : int, optional
+            The number of bins to use. Defaults to 100.
+
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+
+        recalc_all : bool, optional
+            Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
 
         Returns
         -------
-        bins_v (BINS numpy array): The bin labels.
-        moment_diff_v (BINSxM numpy array): The magnetic moment diffusion coefficient at each timestep.
+        bins_v : float[BINS]
+            The bin boundaries.
+
+        moment_diff_v : float[BINS, M]
+            The diffusion coefficient at each timestep.
         '''
 
         recalc = recalc if recalc_all == False else True
@@ -1050,23 +1131,43 @@ class analyzer:
 
         Parameters
         ----------
-        delta_t (float): The timestep over which diffusion will be calculated.
-        bins (int): The number of bins to use. Defaults to 100.
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
-        recalc_all (bool): Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
-        b_field(r, t): The magnetic field function (this is obtained through the currying functions in fields.py). This is only used if recalc_all is set to True.
-        unwrapped (bool): Whether the equatorial pitch angle should be displayed from 0 to pi / 2 or unwrapped and displayed from 0 to pi. This is only used if recalc_all is set to True.
+        delta_t : float, optional
+            The timestep over which diffusion will be calculated. This defaults to none, assuming the quantity is already calculated.
+            This is required if the quantity has yet to be calculated.
+
+        bins : int, optional
+            The number of bins to use. Defaults to 100.
+
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+
+        recalc_all : bool, optional
+            Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
+
+        b_field(r, t=0.) : function, optional
+            The magnetic field function (this is obtained through the currying functions in fields.py). Accepts a
+            position (float[3]) and time (float). Returns the magnetic field vector (float[3]) at that point in spacetime.
+            Defaults to none. This is only used if recalc_all is set to true.
+
+        unwrapped : bool, optional
+            Whether the equatorial pitch angle should be displayed from 0 to pi / 2 or unwrapped and displayed from 0 to pi.
+            Defaults to false. This is only used if recalc_all is set to true.
 
         Returns
         -------
-        bins_v (BINS numpy array): The bin labels.
-        eq_pitch_ang_diff_v (BINSxM numpy array): The equatorial pitch angle diffusion coefficient at each timestep.
+        bins_v : float[BINS]
+            The bin boundaries.
+
+        eq_pitch_ang_diff_v : float[BINS, M]
+            The diffusion coefficient at each timestep.
         '''
 
         recalc = recalc if recalc_all == False else True
 
-        eq_pitch_ang_v = self.__required(self.eq_pitch_ang, recalc_all, b_field)
+        eq_pitch_ang_v = self.__required(self.eq_pitch_ang, recalc_all, b_field, unwrapped)
 
         self.__open()
         found_coef, eq_pitch_ang_diff_v = self.__prepare('eq_pitch_ang_diff_coef', (bins, self.steps), recalc)
@@ -1116,16 +1217,29 @@ class analyzer:
 
         Parameters
         ----------
-        delta_t (float): The timestep over which transport will be calculated.
-        bins (int): The number of bins to use. Defaults to 100.
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
-        recalc_all (bool): Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
+        delta_t : float, optional
+            The timestep over which transport will be calculated. This defaults to none, assuming the quantity is already calculated.
+            This is required if the quantity has yet to be calculated.
+
+        bins : int, optional
+            The number of bins to use. Defaults to 100.
+
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+
+        recalc_all : bool, optional
+            Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
 
         Returns
         -------
-        bins_v (BINS numpy array): The bin labels.
-        moment_trans_v (BINSxM numpy array): The magnetic moment transport coefficient at each timestep.
+        bins_v : float[BINS]
+            The bin boundaries.
+
+        moment_trans_v : float[BINS, M]
+            The transport coefficient at each timestep.
         '''
 
         recalc = recalc if recalc_all == False else True
@@ -1180,22 +1294,43 @@ class analyzer:
 
         Parameters
         ----------
-        delta_t (float): The timestep over which transport will be calculated.
-        bins (int): The number of bins to use. Defaults to 100.
-        numba (bool): Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
-        recalc (bool): Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
-        recalc_all (bool): Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
-        b_field(r, t): The magnetic field function (this is obtained through the currying functions in fields.py). This is only used if recalc_all is set to True.
+        delta_t : float, optional
+            The timestep over which transport will be calculated. This defaults to none, assuming the quantity is already calculated.
+            This is required if the quantity has yet to be calculated.
+
+        bins : int, optional
+            The number of bins to use. Defaults to 100.
+
+        numba : bool, optional
+            Whether the Numba version of the function should be used (as opposed to the Numpy version). Defaults to false.
+
+        recalc : bool, optional
+            Whether the quantity should be recalculated (in the case it already exists on file). Defaults to false.
+
+        recalc_all : bool, optional
+            Whether all quantities which this quantity depends on should be recalculated. Defaults to false.
+
+        b_field(r, t=0.) : function, optional
+            The magnetic field function (this is obtained through the currying functions in fields.py). Accepts a
+            position (float[3]) and time (float). Returns the magnetic field vector (float[3]) at that point in spacetime.
+            Defaults to none. This is only used if recalc_all is set to true.
+
+        unwrapped : bool, optional
+            Whether the equatorial pitch angle should be displayed from 0 to pi / 2 or unwrapped and displayed from 0 to pi.
+            Defaults to false. This is only used if recalc_all is set to true.
 
         Returns
         -------
-        bins_v (BINS numpy array): The bin labels.
-        eq_pitch_ang_trans_v (BINSxM numpy array): The equatorial pitch angle transport coefficient at each timestep.
+        bins_v : float[BINS]
+            The bin boundaries.
+
+        eq_pitch_ang_trans_v : float[BINS, M]
+            The transport coefficient at each timestep.
         '''
 
         recalc = recalc if recalc_all == False else True
 
-        eq_pitch_ang_v = self.__required(self.eq_pitch_ang, recalc_all, b_field)
+        eq_pitch_ang_v = self.__required(self.eq_pitch_ang, recalc_all, b_field, unwrapped)
 
         self.__open()
         found_coef, eq_pitch_ang_trans_v = self.__prepare('eq_pitch_ang_trans_coef', (bins, self.steps), recalc)
