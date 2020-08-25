@@ -64,6 +64,7 @@ def get_txx_params(qin_denton_filename, omni_filename, timestamp, model='t04'):
     v_sw_form = open(omni_filename + '.fmt')
 
     v_inds = [-1, -1, -1]
+    e0y_ind = -1
 
     for line in v_sw_form:
         for i, dim in enumerate(['x', 'y', 'z']):
@@ -71,9 +72,14 @@ def get_txx_params(qin_denton_filename, omni_filename, timestamp, model='t04'):
             if is_line >= 0:
                 v_inds[i] = int(line.split()[0]) - 1
                 break
-                
+
+        is_line = line.find('Electric field')
+        if is_line >= 0:
+            e0y_ind = int(line.split()[0]) - 1
+            
     v_sw_form.close()
     v_sw = np.zeros(3)
+    e0y = 0.
 
     for line in v_sw_data:
         line_data = line.split()
@@ -87,6 +93,7 @@ def get_txx_params(qin_denton_filename, omni_filename, timestamp, model='t04'):
             v_sw[0] = float(line_data[v_inds[0]])
             v_sw[1] = float(line_data[v_inds[1]])
             v_sw[2] = float(line_data[v_inds[2]])
+            e0y = float(line_data[e0y_ind]) * 1e-3
             break
 
     v_sw_data.close()
@@ -109,16 +116,16 @@ def get_txx_params(qin_denton_filename, omni_filename, timestamp, model='t04'):
     w6    = data['W6'][ind_for_min][0]
 
     if model == 't89':
-        return kp, ut, v_sw
+        return kp, ut, v_sw, e0y
     elif model == 't96':
         parmod = np.array([pdyn, dst, byimf, bzimf, 0., 0., 0., 0., 0., 0.])
-        return parmod, ut, v_sw
+        return parmod, ut, v_sw, e0y
     elif model == 't01':
         parmod = np.array([pdyn, dst, byimf, bzimf, g1, g2, 0., 0., 0., 0.])
-        return parmod, ut, v_sw
+        return parmod, ut, v_sw, e0y
     elif model == 't04':
         parmod = np.array([pdyn, dst, byimf, bzimf, w1, w2, w3, w4, w5, w6])
-        return parmod, ut, v_sw
+        return parmod, ut, v_sw, e0y
     else:
         raise NameError('Model type not recognized. Use t89/t96/t01/t04.')
         
@@ -432,7 +439,7 @@ def jacobian(field, r, t=0., eps=1e-6):
 
 
 @njit
-def flc(field, r, t=0., eps=1e-6):
+def flc(field, r, t=0., eps=1e-1):
     '''
     Numerically finds the radius of curvature of the field line at a given point.
 
@@ -491,7 +498,7 @@ def flc(field, r, t=0., eps=1e-6):
 
 
 @njit
-def field_line(field, r, t=0., tol=1e-5, max_iter=1000):
+def field_line(field, r, t=0., tol=1e-5, max_iter=1000, planar=False):
     '''
     Traces a field line of a given magnetosphere model using the Runge-Kutta-Fehlberg method. Use this for the Tsyganenko and IGRF models.
 
@@ -562,15 +569,19 @@ def field_line(field, r, t=0., tol=1e-5, max_iter=1000):
 
     rrb = np.zeros((1, 3))
     rrb[0] = r
-    
+
     h = 1e4
 
     i = 0
     while True:
         r, h = rk45_step(field, r, h, tol, -1)
 
-        if np.linalg.norm(r) <= 0.2 * Re or i > max_iter:
-            break
+        if planar:
+            if np.linalg.norm(np.array([r[0], r[2]])) <= 0.2 * Re or i > max_iter:
+                break
+        else:
+            if np.linalg.norm(r) <= 0.2 * Re or i > max_iter:
+                break
 
         k = np.zeros((1, 3))
         k[0] = r
@@ -587,8 +598,12 @@ def field_line(field, r, t=0., tol=1e-5, max_iter=1000):
     while True:
         r, h = rk45_step(field, r, h, tol, 1)
 
-        if np.linalg.norm(r) <= 0.2 * Re or i > max_iter:
-            break
+        if planar:
+            if np.linalg.norm(np.array([r[0], r[2]])) <= 0.2 * Re or i > max_iter:
+                break
+        else:
+            if np.linalg.norm(r) <= 0.2 * Re or i > max_iter:
+                break
 
         k = np.zeros((1, 3))
         k[0] = r
@@ -712,7 +727,7 @@ def field_reversal(field, rr, t=0.):
 
 
 @njit(parallel=True)
-def adiabaticity(field, rr, K, t=0., m=sp.m_e, q=-sp.e):
+def adiabaticity(field, rr, K, t=0., tol=1e-6, m=sp.m_e, q=-sp.e):
     '''
     For a given particle, returns the adiabaticity along a path. This is usually referred to by kappa = sqrt(R_c/rho),
     where R_c is the radius of curvature of the field line at that point and rho is the particle's gyroradius.
@@ -754,7 +769,7 @@ def adiabaticity(field, rr, K, t=0., m=sp.m_e, q=-sp.e):
 
         rho_0 = gamma_v * m * v / (abs(q) * np.linalg.norm(b))
         
-        R_c = flc(field, rr[i, :])
+        R_c = flc(field, rr[i, :], eps=tol)
         hist_new[i] = sqrt(R_c / rho_0)
 
     return hist_new
@@ -814,3 +829,14 @@ def solve_traj(i, steps, dt, initial_conditions, particle_properties, integrator
                 break
 
     return hist_indiv[::downsample, :, :]
+
+
+@njit(parallel=True)
+def solve_sys(history, initial_conditions, dt, particle_properties, integrator, drop_lost, downsample):
+    num_particles = np.shape(history)[0]
+    steps = np.shape(history)[1]
+
+    for i in prange(num_particles):
+        history[i, :] = solve_traj(i, steps, dt, initial_conditions[i], particle_properties[i], integrator, drop_lost, downsample)
+
+    return history

@@ -2,6 +2,7 @@ import numpy as np
 from scipy import integrate
 from numba import njit
 
+
 def delta(val):
     '''
     Delta distribution. Returns the value its given.
@@ -365,5 +366,41 @@ def weighted_cosine(a, b, k, dims=1):
             return np.interp(np.random.default_rng().uniform(0, 1, dims)[0], ys, xs)
         else:
             return np.interp(np.random.default_rng().uniform(0, 1, dims), ys, xs)
+
+    return sample
+
+
+def power_law(ll, ul, delta, dims=1):
+    '''
+    Power law distribution following p(x) = A*x^delta.
+
+    Parameters
+    ----------
+    ll : float
+        The smallest value.
+
+    ul : float
+        The greatest value.
+
+    delta : float
+        The power to use.
+
+    dims : int, optional
+        The number of dimensions spanned by the distribution. Defaults to 1.
+
+    Returns
+    -------
+    sample() : function
+        Function with no arguments that returns a sample from the distribution.
+    '''
+
+    A = (delta + 1) / (ul**(delta + 1) - ll**(delta + 1))
+
+    def sample():
+        if dims == 1:
+            u = np.random.default_rng().uniform(0, 1, dims)[0]
+        else:
+            u = np.random.default_rng().uniform(0, 1, dims)
+        return ((delta + 1) / A * u + ll**(delta + 1))**(1 / (delta + 1))
 
     return sample

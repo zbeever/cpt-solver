@@ -394,7 +394,7 @@ def diffusion(quantity, time, delta_t, bins=100):
         The diffusion coefficient at each timestep.
     '''
 
-    num_particles = np.shape(quantity)[1]
+    num_particles = np.shape(quantity)[0]
     steps = np.shape(quantity)[1]
     
     dt = np.abs(time[1] - time[0])
@@ -456,7 +456,7 @@ def transport(quantity, time, delta_t, bins=100):
         The transport coefficient at each timestep.
     '''
 
-    num_particles = np.shape(quantity)[1]
+    num_particles = np.shape(quantity)[0]
     steps = np.shape(quantity)[1]
     
     dt = np.abs(time[1] - time[0])
@@ -486,3 +486,42 @@ def transport(quantity, time, delta_t, bins=100):
                 transport_v[i, j] = unweighted_trans_coef[i, j] / weights[i, j]
     
     return bins_v, transport_v
+
+
+@njit(parallel=True)
+def ind_diffusion(quantity, time, delta_t):
+    '''
+    Calculate the diffusion coefficient of a quantity along a history. This value is indexed by bin number,
+    where bins are uniformly distributed between the minimum and maximum values of the given quantity.
+
+    Parameters
+    ----------
+    quantity : float[N, M]
+        A history of the quantity to use. The first index denotes the particle and the second the timestep.
+
+    time : float[M]
+        An array of timesteps associated with the history.
+
+    delta_t : float
+        The timestep over which diffusion will be calculated.
+
+    Returns
+    -------
+    diffusion_v : float[BINS, M]
+        The diffusion coefficient at each timestep.
+    '''
+
+    num_particles = np.shape(quantity)[0]
+    steps = np.shape(quantity)[1]
+    
+    dt = np.abs(time[1] - time[0])
+    delta_t_ind = int(max(delta_t // dt, 1))
+    inv_diff_time = 1.0 / (delta_t_ind * dt)
+
+    ind_diffusion_v = np.zeros((num_particles, steps))
+
+    for i in prange(num_particles):
+        for j in prange(steps - delta_t_ind - 1):
+            ind_diffusion_v[i, j] = (quantity[i, j + delta_t_ind] - quantity[i, j])**2 * inv_diff_time
+            
+    return ind_diffusion_v

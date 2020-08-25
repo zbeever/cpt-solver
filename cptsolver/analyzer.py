@@ -2,7 +2,7 @@ import os
 import h5py
 import numpy as np
 
-from cptsolver.utils import format_bytes, flc, b_along_history
+from cptsolver.utils import format_bytes, flc, b_along_history, J_to_eV
 from cptsolver.diagnostics import *
 
 
@@ -942,7 +942,7 @@ class analyzer:
             check_beg = np.argwhere((mp_ind_0 > x_ind_0) & (x_ind_0 > 0) & (b_mag_v[:, 0] != 0))
 
             for i in check_beg:
-                R_c = flc(b_field, self.rr[i, 0][0], self.tt[0])
+                R_c = flc(b_field, self.rr[i, 0][0], self.tt[0], eps=1)
                 if sqrt(R_c / gyrorad_v[i, 0]) > adb_eps:
                     mp_inds[i, 0] = True
 
@@ -951,7 +951,7 @@ class analyzer:
             check_end = np.argwhere((mp_ind_minus_1 < x_ind_minus_1) & (x_ind_minus_1 < np.shape(x_inds)[1] - 1) & (b_mag_v[:, -1] != 0))
                     
             for i in check_end:
-                R_c = flc(b_field, self.rr[i, -1][0], self.tt[-1])
+                R_c = flc(b_field, self.rr[i, -1][0], self.tt[-1], eps=1)
                 if sqrt(R_c / gyrorad_v[i, -1]) > adb_eps:
                     mp_inds[i, -1] = True
                     

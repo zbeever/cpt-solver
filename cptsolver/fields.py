@@ -477,7 +477,7 @@ def xz_slice(field_func):
     return field
 
 
-def evolving_harris_cs_model(b0x, b0z, L_cs, lambd=40):
+def evolving_harris_cs_model(b0x, b0z, L_cs, lambd=40, gam=1):
     '''
     A Harris current sheet evolving in time. Has a strengthening factor in the x-component to force mirroring.
 
@@ -509,7 +509,7 @@ def evolving_harris_cs_model(b0x, b0z, L_cs, lambd=40):
         if lambd == None:
             Bx = b0x * np.tanh(z / L)
         else:
-            Bx = b0x * np.tanh(z / L) + np.exp(-lambd) * np.sinh(z * inv_Re)
+            Bx = b0x * np.tanh(z / L) + np.exp(-lambd) * np.sinh(z * inv_Re)**(2 * gam - 1)
         By = 0
         Bz = b0z
 
@@ -518,7 +518,7 @@ def evolving_harris_cs_model(b0x, b0z, L_cs, lambd=40):
     return field
 
 
-def evolving_harris_induced_E(b0x, L_cs, eps=1e-6):
+def evolving_harris_induced_E(b0x, L_cs, e0y=0., eps=1e-6):
     '''
     The induced electric field associated with an evolving Harris current sheet.
 
@@ -529,6 +529,9 @@ def evolving_harris_induced_E(b0x, L_cs, eps=1e-6):
 
     L_cs(t) : function
         The function describing the change in current sheet thickness (in m) over time.    
+
+    e0y : float
+        The static, background electric field.
 
     eps : float, optional
         The small value used to calculate the derivative of L_cs(t). Defaults to 1e-6. Should be at least as small as the timestep of the simulation.
@@ -546,7 +549,7 @@ def evolving_harris_induced_E(b0x, L_cs, eps=1e-6):
         dLdt = (L_cs(t + 0.5 * eps) - L_cs(t - 0.5 * eps)) / eps
 
         Ex = 0
-        Ey = b0x * dLdt * ((z / L) * np.tanh(z / L) - np.log(np.cosh(z / L)) - np.log(2))
+        Ey = b0x * dLdt * ((z / L) * np.tanh(z / L) - np.log(np.cosh(z / L)) - np.log(2)) + e0y
         Ez = 0
 
         return np.array([Ex, Ey, Ez])

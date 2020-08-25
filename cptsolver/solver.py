@@ -9,7 +9,7 @@ from numba import njit, prange
 
 from cptsolver.integrators import relativistic_boris
 from cptsolver.distributions import delta
-from cptsolver.utils import Re, field_line, b_along_path, velocity_vec, solve_traj, format_bytes
+from cptsolver.utils import Re, field_line, b_along_path, velocity_vec, solve_traj, format_bytes, solve_sys
 
 
 class solver:
@@ -250,7 +250,7 @@ class solver:
         return
 
     
-    def populate_by_eq_pa(self, trials, L, E_dist, eq_pitch_ang_dist, phase_ang_dist, m_dist=delta(sp.m_e), q_dist=delta(-sp.e), t=0.):
+    def populate_by_eq_pa(self, trials, L, E_dist, eq_pitch_ang_dist, phase_ang_dist, m_dist=delta(sp.m_e), q_dist=delta(-sp.e), t=0., planar=False):
         '''
         Populates the system by L-shell and equatorial pitch angle.
 
@@ -293,7 +293,7 @@ class solver:
         mag_eq = np.array([-L * Re, 0, 0])
 
         # Get the array of points tracing the field line.
-        rr = field_line(self.b_field, mag_eq)
+        rr = field_line(self.b_field, mag_eq, planar=planar)
 
         # Get the magnetic field along the field line.
         b_vec, b_mag, b_rad_mag = b_along_path(self.b_field, rr)
@@ -313,19 +313,18 @@ class solver:
             b_val = b_min / np.sin(eq_pa)**2
 
             # Find the point on the field line that has a magnetic field strength closest to the above calculated value.
-            b_ind = np.abs(b_mag - b_val).argmin()
+            b_ind = 0
+
+            for j, b in enumerate(b_mag):
+                if b > b_val:
+                    continue
+                else:
+                    b_ind = j
+                    break
+
+            # b_ind = np.abs(b_mag - b_val).argmin()
 
             # Get the sine of the near-mirror point pitch angle.
-            b_ratio = np.sqrt(b_mag[b_ind] / b_min)
-            new_sin = b_ratio * np.sin(eq_pa)
-
-            # If this is greater than 1 (impossible), we take a step towards a less strong magnetic field and recalculate the near-mirror point pitch angle.
-            if new_sin > 1:
-                if b_ind > b_min_ind:
-                    b_ind -= 1
-                else:
-                    b_ind += 1
-                    
             b_ratio = np.sqrt(b_mag[b_ind] / b_min)
             new_sin = b_ratio * np.sin(eq_pa)
 
@@ -398,9 +397,6 @@ class solver:
         if not self.populated:
             raise NameError('System not yet populated. Cannot solve without initial conditions.')
 
-        if self.loaded:
-            raise NameError('Cannot solve an already solved system. Use add_particles or add_time.')
-            
         self.steps = round(abs(T / dt))
         self.dt = dt
         
@@ -415,6 +411,7 @@ class solver:
             results = list(tqdm.tqdm(p.imap(self.solve_traj, range(self.n)), total=self.n))
 
         self.history = np.array(results)
+
         self.solved = True
 
         return
@@ -450,6 +447,8 @@ class solver:
         if hasattr(self, 'initial_conditions'):
             del self.initial_conditions
 
+        self.populated = False
+
         self.initial_conditions          = np.empty((int(hist.attrs['num_particles']), 4, 3))
         self.initial_conditions[:, 0, :] = rr[:, -1, :]
         self.initial_conditions[:, 1, :] = vv[:, -1, :]
@@ -464,6 +463,10 @@ class solver:
         self.particle_properties[:, 1] = qq[:]
 
         self.n = hist.attrs['num_particles']
+
+        self.populated = True
+
+        self.solved = False
 
         self.solve(T + float(hist.attrs['solve_timestep']), float(hist.attrs['solve_timestep']), float(hist.attrs['sample_timestep']))
 
