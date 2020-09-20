@@ -12,6 +12,92 @@ Re = 6.371e6     # m
 inv_Re = 1. / Re # m^-1
 
 
+def normalized_bounce_time(field, L, steps=200, tol=1e-6, max_iter=5000, window=51, polyord=2):
+    '''
+    Returns the normalized bounce time along the midnight-plane field line (specified by L) of a magnetosphere model.
+
+    Parameters
+    ----------
+    field(r, t=0.) : function
+        The magnetosphere model. See fields.py.
+
+    L : float
+        The L-shell value.
+
+    steps : int, optional
+        The number of different equatorial pitch angles to examine. Defaults to 200.
+
+    tol : float, optional
+        The tolerance of the field line tracer. Defaults to 1e-6.
+
+    max_iter : int, optional
+        The maximum iterations of the field line tracer. Defaults to 5000.
+
+    window : int, optional
+        The window used by the Savitzky-Golay filter. Defaults to 51.
+
+    polyord : int, optional
+        The order of polynomial used by the Savitzky-Golay filter.
+
+    Returns
+    -------
+    T(alpha_eq) : function
+        The normalized bounce time function.
+    '''
+
+    rr = field_line(field, np.array([-L * Re, 0., 0.]), 0, tol, max_iter)
+    bv, bm, brm = b_along_path(field, rr)
+    cs_ind = bm.argmin()
+    
+    r_eq = np.linalg.norm(rr[cs_ind])
+    b0 = bm[cs_ind]
+    
+    alpha_eqs = np.radians(np.linspace(0, 90, steps))
+    Ts = np.zeros_like(alpha_eqs)
+    
+    for j, alpha_eq in enumerate(alpha_eqs):
+        upward_integral = 0
+        i = cs_ind
+
+        ds = np.linalg.norm(rr[i + 1] - rr[i])
+        Bs = np.linalg.norm(field(rr[i + 1]))
+        arcsin_arg = np.sqrt(Bs / b0) * np.sin(alpha_eq)
+
+        while arcsin_arg <= 1 and i < len(bm) - 2:
+            i += 1
+
+            upward_integral += ds / (np.cos(np.arcsin(np.sqrt(Bs / b0) * np.sin(alpha_eq))))
+
+            ds = np.linalg.norm(rr[i + 1] - rr[i])
+            Bs = np.linalg.norm(field(rr[i + 1]))
+            arcsin_arg = np.sqrt(Bs / b0) * np.sin(alpha_eq)
+
+        downward_integral = 0
+        i = cs_ind
+
+        ds = np.linalg.norm(rr[i - 1] - rr[i])
+        Bs = np.linalg.norm(field(rr[i - 1]))
+        arcsin_arg = np.sqrt(Bs / b0) * np.sin(alpha_eq)
+
+        while arcsin_arg <= 1 and i - 1 > 0:
+            i -= 1
+
+            downward_integral += ds / (np.cos(np.arcsin(np.sqrt(Bs / b0) * np.sin(alpha_eq))))
+
+            ds = np.linalg.norm(rr[i - 1] - rr[i])
+            Bs = np.linalg.norm(field(rr[i - 1]))
+            arcsin_arg = np.sqrt(Bs / b0) * np.sin(alpha_eq)
+        
+        Ts[j] = 0.5 * (upward_integral + downward_integral) / r_eq
+        
+    smoothed_Ts = savgol_filter(Ts, window, polyord)
+    
+    def T(alpha_eq):
+        return np.interp(alpha_eq, alpha_eqs, smoothed_Ts)
+    
+    return np.vectorize(T)
+
+
 def harris_kappa(E, m, q, alpha_eq, b0x, sigma, L_cs):
     '''
     Returns the kappa parameter for a particle in a given Harris sheet.
@@ -103,11 +189,11 @@ def guiding_center(r, v, field, m, q, tol=1e-3, max_iter=20):
     q : float
         The charge of the particle in C.
 
-    tol : float
-        The tolerance of the solver. This is the maximum difference allowed between successive solutions.
+    tol : float, optional
+        The tolerance of the solver. This is the maximum difference allowed between successive solutions. Defaults to 1e-3.
 
-    max_iter : int
-        The maximum number of iterations for the solver to run.
+    max_iter : int, optional
+        The maximum number of iterations for the solver to run. Defaults to 20.
 
     Returns
     -------
@@ -148,14 +234,14 @@ def harris_params_from_txx(field, L, L_cs, t=0., tol=1e-5, eps=1e-1):
     L_cs : float
         The current sheet thickness (in m).
 
-    t : float
-        The time after the initial time (in s).
+    t : float, optional
+        The time after the initial time (in s). Defaults to 0.
 
-    tol : float
-        The tolerance to use in the field line tracer.
+    tol : float, optional
+        The tolerance to use in the field line tracer. Defaults to 1e-5.
 
-    eps : float
-        The value of epsilon to use in the field line curvature function.
+    eps : float, optional
+        The value of epsilon to use in the field line curvature function. Defaults to 1e-1.
 
     Returns
     -------
@@ -196,14 +282,14 @@ def harris_params_from_txx_guess_sigma(field, L, t=0., tol=1e-5, eps=1e-1):
     L : float
         The L-shell.
 
-    t : float
-        The time after the initial time (in s).
+    t : float, optional
+        The time after the initial time (in s). Defaults to 0.
 
-    tol : float
-        The tolerance to use in the field line tracer.
+    tol : float, optional
+        The tolerance to use in the field line tracer. Defaults to 1e-5.
 
-    eps : float
-        The value of epsilon to use in the field line curvature function.
+    eps : float, optional
+        The value of epsilon to use in the field line curvature function. Defaults to 1e-1.
 
     Returns
     -------
