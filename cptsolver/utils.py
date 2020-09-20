@@ -12,6 +12,230 @@ Re = 6.371e6     # m
 inv_Re = 1. / Re # m^-1
 
 
+def harris_kappa(E, m, q, alpha_eq, b0x, sigma, L_cs):
+    '''
+    Returns the kappa parameter for a particle in a given Harris sheet.
+
+    Parameters
+    ----------
+    E : float
+        The kinetic energy of the particle (in eV).
+
+    m : float
+        The mass of the particle (in kg).
+
+    q : float
+        The charge of the particle (in C).
+
+    alpha_eq : float
+        The equatorial pitch angle of the particle (in radians).
+
+    b0x : float
+        The b0x parameter (in T) of the associated Harris model. The minimum B magnitude is given by sigma * b0x.
+
+    sigma : float
+        The sigma parameter of the associated Harris model. This is the ratio of b0z / b0x.
+
+    L_cs : float
+        The L_cs parameter (in m) of the associated Harris model. This is the current sheet thickness.
+
+    Returns
+    -------
+    kappa : float
+        The kappa parameter, characterizing the particle's adiabaticity.
+    '''
+
+    K = eV_to_J(E)
+    gamma = K / (m * sp.c**2) + 1.
+    v = c * np.sqrt(1. - 1. / gamma**2)
+    kappa = np.sqrt(np.abs(q) * sigma**2 * L_cs * b0x / (gamma * m * v * np.sin(alpha_eq)))
+    return kappa
+
+
+@njit
+def gyrovector(v, b, m, q):
+    '''
+    Given a velocity and B vector (assumed to be at the guiding center), returns the gyrovector
+    stretching from the guiding center to the particle's position.
+
+    Parameters
+    ----------
+    v : float[3]
+        The velocity of the particle in m/s.
+
+    b : float[3]
+        The magnetic field vector in T. This is assumed to be at the guiding center.
+
+    m : float
+        The mass of the particle in kg.
+
+    q : float
+        The charge of the particle in C.
+
+    Returns
+    -------
+    rho : float[3]
+        The gyrovector in m.
+    '''
+
+    gamma = 1. / np.sqrt(1. - np.dot(v, v) / sp.c**2)  
+    return gamma * m / (q * np.dot(b, b)) * np.cross(b, v)
+
+
+@njit
+def guiding_center(r, v, field, m, q, tol=1e-3, max_iter=20):
+    '''
+    Attempts to iteratively find the guiding center of a particle given its instantaneous position.
+
+    Parameters
+    ----------
+    r : float[3]
+        The instanteous position of the particle in m.
+    v : float[3]
+        The velocity of the particle in m/s.
+
+    field(r, t=0.) : function
+        The magnetic field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    m : float
+        The mass of the particle in kg.
+
+    q : float
+        The charge of the particle in C.
+
+    tol : float
+        The tolerance of the solver. This is the maximum difference allowed between successive solutions.
+
+    max_iter : int
+        The maximum number of iterations for the solver to run.
+
+    Returns
+    -------
+    gc1 : float[3]
+        The guiding center of the particle in m.
+
+    b : float[3]
+        The magnetic field (in T) at the guiding center.
+    '''
+    b = field(r)
+    gc0 = r - gyrovector(v, b, m, q)
+
+    i = 1
+    while i <= max_iter:
+        b = field(gc0)
+        gc1 = r - gyrovector(v, b, m, q)
+
+        if np.linalg.norm(gc1 - gc0) / np.linalg.norm(gc0) < tol:
+            b = field(gc1)
+            return gc1, b
+
+        gc0 = gc1
+        i += 1
+
+
+def harris_params_from_txx(field, L, L_cs, t=0., tol=1e-5, eps=1e-1):
+    '''
+    Given an L shell, a magnetic field model, and an assumed current sheet thickness, generates Harris current sheet parameters.
+
+    Parameters
+    ----------
+    field(r, t=0.) : function
+        The magnetic field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    L : float
+        The L-shell.
+
+    L_cs : float
+        The current sheet thickness (in m).
+
+    t : float
+        The time after the initial time (in s).
+
+    tol : float
+        The tolerance to use in the field line tracer.
+
+    eps : float
+        The value of epsilon to use in the field line curvature function.
+
+    Returns
+    -------
+    b0x : float
+        The maximum value of the x-component of the magnetic field.
+
+    sigma : float
+        The ratio of b0z / b0x.
+
+    L_cs : float
+        The current sheet thickness (in m).
+    '''
+
+    r = np.array([-L * Re, 0., 0.])
+    rr = field_line(field, r, t, tol)
+    bv, bm, brm = b_along_path(field, rr)
+    cs_ind = bm.argmin()
+
+    R_c = flc(field, rr[cs_ind], t, eps)
+    sigma = R_c / L_cs
+    b0x = bv[cs_ind, 2] / sigma
+
+    return b0x, sigma, L_cs
+
+
+@njit
+def harris_params_from_txx_guess_sigma(field, L, t=0., tol=1e-5, eps=1e-1):
+    '''
+    Given an L shell and a magnetic field model this function generates Harris current sheet parameters.
+    It estimates a sigma by averaging the values of sigma at the local minima flanking the current sheet.
+    This is experimental and not guaranteed to produce physical results.
+
+    Parameters
+    ----------
+    field(r, t=0.) : function
+        The magnetic field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    L : float
+        The L-shell.
+
+    t : float
+        The time after the initial time (in s).
+
+    tol : float
+        The tolerance to use in the field line tracer.
+
+    eps : float
+        The value of epsilon to use in the field line curvature function.
+
+    Returns
+    -------
+    b0x : float
+        The maximum value of the x-component of the magnetic field.
+
+    sigma : float
+        The ratio of b0z / b0x.
+
+    L_cs : float
+        The current sheet thickness (in m).
+    '''
+
+    r = np.array([-L * Re, 0., 0.])
+    rr = field_line(field, r, t, tol)
+    bv, bm, brm = b_along_path(field, rr)
+    cs_ind = bm.argmin()
+
+    R_c = flc(field, rr[cs_ind], t, eps)
+
+    sigmas = np.abs(bv[:, 2] / bv[:, 0])
+    local_minima = np.argwhere(np.r_[True, sigmas[1:] < sigmas[:-1]] & np.r_[sigmas[:-1] < sigmas[1:], True])[:, 0]
+    left = np.argwhere(np.diff(np.sign(local_minima - cs_ind)))[:, 0][0]
+    right = left + 1
+    sigma = (sigmas[local_minima[left]] + sigmas[local_minima[right]]) * 0.5
+
+    L_cs = R_c / sigma
+    b0x = bv[cs_ind, 2] / sigma
+
+    return b0x, sigma, L_cs
+
+
 def get_txx_params(qin_denton_filename, omni_filename, timestamp, model='t04'):
     '''
     Given the 1-minute datasets available from http://virbo.org/QinDenton and https://omniweb.gsfc.nasa.gov/form/omni_min.html,
@@ -64,7 +288,6 @@ def get_txx_params(qin_denton_filename, omni_filename, timestamp, model='t04'):
     v_sw_form = open(omni_filename + '.fmt')
 
     v_inds = [-1, -1, -1]
-    e0y_ind = -1
 
     for line in v_sw_form:
         for i, dim in enumerate(['x', 'y', 'z']):
@@ -73,13 +296,8 @@ def get_txx_params(qin_denton_filename, omni_filename, timestamp, model='t04'):
                 v_inds[i] = int(line.split()[0]) - 1
                 break
 
-        is_line = line.find('Electric field')
-        if is_line >= 0:
-            e0y_ind = int(line.split()[0]) - 1
-            
     v_sw_form.close()
     v_sw = np.zeros(3)
-    e0y = 0.
 
     for line in v_sw_data:
         line_data = line.split()
@@ -93,7 +311,6 @@ def get_txx_params(qin_denton_filename, omni_filename, timestamp, model='t04'):
             v_sw[0] = float(line_data[v_inds[0]])
             v_sw[1] = float(line_data[v_inds[1]])
             v_sw[2] = float(line_data[v_inds[2]])
-            e0y = float(line_data[e0y_ind]) * 1e-3
             break
 
     v_sw_data.close()
@@ -116,16 +333,16 @@ def get_txx_params(qin_denton_filename, omni_filename, timestamp, model='t04'):
     w6    = data['W6'][ind_for_min][0]
 
     if model == 't89':
-        return kp, ut, v_sw, e0y
+        return kp, ut, v_sw
     elif model == 't96':
         parmod = np.array([pdyn, dst, byimf, bzimf, 0., 0., 0., 0., 0., 0.])
-        return parmod, ut, v_sw, e0y
+        return parmod, ut, v_sw
     elif model == 't01':
         parmod = np.array([pdyn, dst, byimf, bzimf, g1, g2, 0., 0., 0., 0.])
-        return parmod, ut, v_sw, e0y
+        return parmod, ut, v_sw
     elif model == 't04':
         parmod = np.array([pdyn, dst, byimf, bzimf, w1, w2, w3, w4, w5, w6])
-        return parmod, ut, v_sw, e0y
+        return parmod, ut, v_sw
     else:
         raise NameError('Model type not recognized. Use t89/t96/t01/t04.')
         
