@@ -190,7 +190,7 @@ class solver:
         return
 
 
-    def populate(self, trials, r_dist, E_dist, pitch_ang_dist, phase_ang_dist, m_dist=delta(sp.m_e), q_dist=delta(-sp.e)):
+    def populate(self, trials, r_dist, E_dist, pitch_ang_dist, phase_ang_dist, m_dist=delta(sp.m_e), q_dist=delta(-sp.e), by_list=False):
         '''
         Populates the system by position and instantaneous pitch angle.
 
@@ -231,7 +231,12 @@ class solver:
             K = E_dist()
 
             pitch_angle = pitch_ang_dist()
-            phase_angle = phase_ang_dist()
+
+            phase_angle = 0
+            if by_list:
+                phase_angle = phase_ang_dist[i] 
+            else:
+                phase_angle = phase_ang_dist()
 
             m = m_dist()
             q = q_dist()

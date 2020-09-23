@@ -3,6 +3,7 @@ from datetime import datetime
 from calendar import monthrange
 import scipy.constants as sp
 from scipy.io import loadmat
+from scipy.signal import savgol_filter
 from numba import njit, prange
 from math import sqrt
 from matplotlib.gridspec import GridSpec
@@ -262,61 +263,6 @@ def harris_params_from_txx(field, L, L_cs, t=0., tol=1e-5, eps=1e-1):
 
     R_c = flc(field, rr[cs_ind], t, eps)
     sigma = R_c / L_cs
-    b0x = bv[cs_ind, 2] / sigma
-
-    return b0x, sigma, L_cs
-
-
-@njit
-def harris_params_from_txx_guess_sigma(field, L, t=0., tol=1e-5, eps=1e-1):
-    '''
-    Given an L shell and a magnetic field model this function generates Harris current sheet parameters.
-    It estimates a sigma by averaging the values of sigma at the local minima flanking the current sheet.
-    This is experimental and not guaranteed to produce physical results.
-
-    Parameters
-    ----------
-    field(r, t=0.) : function
-        The magnetic field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
-
-    L : float
-        The L-shell.
-
-    t : float, optional
-        The time after the initial time (in s). Defaults to 0.
-
-    tol : float, optional
-        The tolerance to use in the field line tracer. Defaults to 1e-5.
-
-    eps : float, optional
-        The value of epsilon to use in the field line curvature function. Defaults to 1e-1.
-
-    Returns
-    -------
-    b0x : float
-        The maximum value of the x-component of the magnetic field.
-
-    sigma : float
-        The ratio of b0z / b0x.
-
-    L_cs : float
-        The current sheet thickness (in m).
-    '''
-
-    r = np.array([-L * Re, 0., 0.])
-    rr = field_line(field, r, t, tol)
-    bv, bm, brm = b_along_path(field, rr)
-    cs_ind = bm.argmin()
-
-    R_c = flc(field, rr[cs_ind], t, eps)
-
-    sigmas = np.abs(bv[:, 2] / bv[:, 0])
-    local_minima = np.argwhere(np.r_[True, sigmas[1:] < sigmas[:-1]] & np.r_[sigmas[:-1] < sigmas[1:], True])[:, 0]
-    left = np.argwhere(np.diff(np.sign(local_minima - cs_ind)))[:, 0][0]
-    right = left + 1
-    sigma = (sigmas[local_minima[left]] + sigmas[local_minima[right]]) * 0.5
-
-    L_cs = R_c / sigma
     b0x = bv[cs_ind, 2] / sigma
 
     return b0x, sigma, L_cs

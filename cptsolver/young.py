@@ -4,6 +4,85 @@ from scipy import constants as sp
 from cptsolver.utils import eV_to_J
 
 
+def zetas(b_field, L, step_size=10, steps=1e4):
+    '''
+    Returns the zeta parameters along a field line of a magnetosphere model.
+
+    Parameters
+    ----------
+    field(r, t=0.) : function
+        The magnetic field model.
+
+    L : float
+        The L-shell value.
+
+    step_size : float, optional
+        The size of each step along the field line (in m). Defaults to 10.
+
+    steps : int, optional
+        The number of steps to take along the field line before computing the second derivative. Defaults to 10,000.
+
+    Returns
+    ------
+    zeta1 : float
+        The zeta_1 parameter, defined as R_c * d2R_c/ds2
+
+    zeta2 : float
+        The zeta_2 parameter, defined as (R_c**2/B_0) * d2B/ds2
+        
+    '''
+
+    rr = field_line(b_field, np.array([-L * Re, 0., 0.]))
+    bv, bm, brm = b_along_path(b_field, rr)
+
+    r_eq = np.linalg.norm(rr[cs_ind])
+    R_c = flc(b_field, rr[cs_ind], 0, 1)
+
+    b_plus_h = 0
+    b_s0 = bm[cs_ind]
+    b_minus_h = 0
+
+    h = 0
+
+    r_plus_h = np.copy(rr[cs_ind])
+    b_plus_h = b_field(r_plus_h)
+    b_plus_h /= np.linalg.norm(b_plus_h)
+
+    r_minus_h = np.copy(rr[cs_ind])
+    b_minus_h = b_field(r_minus_h)
+    b_minus_h /= np.linalg.norm(b_minus_h)
+
+    for i in range(int(steps)):
+        r_old = np.copy(r_plus_h)
+        r_plus_h += b_plus_h * stepsize
+        
+        h_add = np.linalg.norm(r_plus_h - r_old)
+        
+        b_plus_h = b_field(r_plus_h)
+        b_plus_h /= np.linalg.norm(b_plus_h)
+        
+        r_old = np.copy(r_minus_h)
+        r_minus_h -= b_minus_h * stepsize
+        
+        h_add += np.linalg.norm(r_minus_h - r_old)
+        
+        b_minus_h = b_field(r_minus_h)
+        b_minus_h /= np.linalg.norm(b_minus_h)
+        
+        h += h_add * 0.5
+        
+    R_c_plus_h = flc(b_field, r_plus_h, 0, 1)
+    R_c_minus_h = flc(b_field, r_minus_h, 0, 1)
+
+    d2_Rc_ds2 = (R_c_plus_h - 2 * R_c + R_c_minus_h) / h**2
+    d2_B_ds2 = (np.linalg.norm(b_field(r_plus_h)) - 2 * b_s0 + np.linalg.norm(b_field(r_minus_h))) / h**2
+
+    zeta1 = R_c * d2_Rc_ds2
+    zeta2 = (R_c**2 / b_s0) * d2_B_ds2
+
+    return zeta1, zeta2
+
+
 def epsilon(E, q, m, b0x, sigma, L_cs):
     '''
     Epsilon parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -35,7 +114,7 @@ def epsilon(E, q, m, b0x, sigma, L_cs):
     '''
 
     K = eV_to_J(E)
-    p = sqrt(K**2 / sp.c**2 + 2. * K * m)
+    p = np.sqrt(K**2 / sp.c**2 + 2. * K * m)
     return p / (np.abs(q) * (sigma * b0x) * (sigma * L_cs))
 
 
@@ -192,7 +271,7 @@ def N(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    alpha_eqs = np.linspace(0, np.pi / 2, 1000)
+    alpha_eqs = np.linspace(0, np.pi / 2, 2000)
     quantity = np.sin(omega_A(eps) * alpha_eqs) * np.cos(alpha_eqs)**b_A(eps)
     return 1. / np.amax(quantity)
 
@@ -236,6 +315,7 @@ def q(eps, coefs):
     quantity = 0
     for n, qn in enumerate(coefs):
         quantity += qn * eps**(-n)
+    return quantity
 
 
 def c_A(eps):
