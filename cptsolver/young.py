@@ -1,10 +1,10 @@
 import numpy as np
 from scipy import constants as sp
 
-from cptsolver.utils import eV_to_J
+from cptsolver.utils import eV_to_J, field_line, b_along_path, flc, Re
 
 
-def zetas(b_field, L, step_size=10, steps=1e4):
+def zetas_general(b_field, L, step_size=10, steps=1e4):
     '''
     Returns the zeta parameters along a field line of a magnetosphere model.
 
@@ -35,6 +35,8 @@ def zetas(b_field, L, step_size=10, steps=1e4):
     rr = field_line(b_field, np.array([-L * Re, 0., 0.]))
     bv, bm, brm = b_along_path(b_field, rr)
 
+    cs_ind = bm.argmin()
+
     r_eq = np.linalg.norm(rr[cs_ind])
     R_c = flc(b_field, rr[cs_ind], 0, 1)
 
@@ -54,7 +56,7 @@ def zetas(b_field, L, step_size=10, steps=1e4):
 
     for i in range(int(steps)):
         r_old = np.copy(r_plus_h)
-        r_plus_h += b_plus_h * stepsize
+        r_plus_h += b_plus_h * step_size
         
         h_add = np.linalg.norm(r_plus_h - r_old)
         
@@ -62,7 +64,7 @@ def zetas(b_field, L, step_size=10, steps=1e4):
         b_plus_h /= np.linalg.norm(b_plus_h)
         
         r_old = np.copy(r_minus_h)
-        r_minus_h -= b_minus_h * stepsize
+        r_minus_h -= b_minus_h * step_size
         
         h_add += np.linalg.norm(r_minus_h - r_old)
         
@@ -83,7 +85,60 @@ def zetas(b_field, L, step_size=10, steps=1e4):
     return zeta1, zeta2
 
 
-def epsilon(E, q, m, b0x, sigma, L_cs):
+def zetas_harris(sigma):
+    '''
+    Returns the zeta parameters in a given Harris model.
+
+    Parameters
+    ----------
+    sigma : float
+        The sigma parameter of the associated Harris model. This is the ratio of b0z / b0x.
+
+    Returns
+    -------
+    zeta_1 : float
+        See Young et al. (2002), DOI: 10.1029/2000JA000294
+
+    zeta_2 : float
+        See Young et al. (2002), DOI: 10.1029/2000JA000294
+    '''
+
+    return 3. + 2. * sigma**2, sigma
+
+
+def epsilon_general(E, q, m, R_c, B0):
+    '''
+    Epsilon parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
+
+    Parameters
+    ----------
+    E : float
+        Kinetic energy of particle (in eV).
+
+    q : float
+        Charge of particle (in C).
+
+    m : float
+        Mass of particle (in kg).
+
+    R_c : float
+        The radius of curvature (in m) at the magnetic equator.
+
+    B0 : float
+        The magnitude of the magnetic field (in T) at the magnetic equator.
+
+    Returns
+    -------
+    epsilon : float
+        See Young et al. (2002), DOI: 10.1029/2000JA000294
+    '''
+
+    K = eV_to_J(E)
+    p = np.sqrt(K**2 / sp.c**2 + 2. * K * m)
+    return p / (np.abs(q) * R_c * B0)
+
+
+def epsilon_harris(E, q, m, b0x, sigma, L_cs):
     '''
     Epsilon parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
 
@@ -116,42 +171,6 @@ def epsilon(E, q, m, b0x, sigma, L_cs):
     K = eV_to_J(E)
     p = np.sqrt(K**2 / sp.c**2 + 2. * K * m)
     return p / (np.abs(q) * (sigma * b0x) * (sigma * L_cs))
-
-
-def zeta_1(sigma):
-    '''
-    zeta_1 parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
-
-    Parameters
-    ----------
-    sigma : float
-        The sigma parameter of the associated Harris model. This is the ratio of b0z / b0x.
-
-    Returns
-    -------
-    zeta_1 : float
-        See Young et al. (2002), DOI: 10.1029/2000JA000294
-    '''
-
-    return 3. + 2. * sigma**2
-
-
-def zeta_2(sigma):
-    '''
-    zeta_2 parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
-
-    Parameters
-    ----------
-    sigma : float
-        The sigma parameter of the associated Harris model. This is the ratio of b0z / b0x.
-
-    Returns
-    -------
-    zeta_2 : float
-        See Young et al. (2002), DOI: 10.1029/2000JA000294
-    '''
-
-    return sigma
 
 
 def A_max(eps, z1, z2):
