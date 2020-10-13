@@ -13,7 +13,7 @@ Re = 6.371e6     # m
 inv_Re = 1. / Re # m^-1
 
 
-def normalized_bounce_time(field, L, steps=200, tol=1e-6, max_iter=5000, window=51, polyord=2):
+def normalized_bounce_time(field, L, steps=200, tol=1e-6, max_iter=5000, window=0.25, polyord=2):
     '''
     Returns the normalized bounce time along the midnight-plane field line (specified by L) of a magnetosphere model.
 
@@ -56,47 +56,52 @@ def normalized_bounce_time(field, L, steps=200, tol=1e-6, max_iter=5000, window=
     alpha_eqs = np.radians(np.linspace(0, 90, steps))
     Ts = np.zeros_like(alpha_eqs)
     
-    for j, alpha_eq in enumerate(alpha_eqs):
+    for j in range(len(alpha_eqs)):
         upward_integral = 0
         i = cs_ind
 
         ds = np.linalg.norm(rr[i + 1] - rr[i])
         Bs = np.linalg.norm(field(rr[i + 1]))
-        arcsin_arg = np.sqrt(Bs / b0) * np.sin(alpha_eq)
+        arcsin_arg = np.sqrt(Bs / b0) * np.sin(alpha_eqs[j])
 
         while arcsin_arg <= 1 and i < len(bm) - 2:
             i += 1
 
-            upward_integral += ds / (np.cos(np.arcsin(np.sqrt(Bs / b0) * np.sin(alpha_eq))))
+            upward_integral += ds / (np.cos(np.arcsin(np.sqrt(Bs / b0) * np.sin(alpha_eqs[j]))))
 
             ds = np.linalg.norm(rr[i + 1] - rr[i])
             Bs = np.linalg.norm(field(rr[i + 1]))
-            arcsin_arg = np.sqrt(Bs / b0) * np.sin(alpha_eq)
+            arcsin_arg = np.sqrt(Bs / b0) * np.sin(alpha_eqs[j])
 
         downward_integral = 0
         i = cs_ind
 
         ds = np.linalg.norm(rr[i - 1] - rr[i])
         Bs = np.linalg.norm(field(rr[i - 1]))
-        arcsin_arg = np.sqrt(Bs / b0) * np.sin(alpha_eq)
+        arcsin_arg = np.sqrt(Bs / b0) * np.sin(alpha_eqs[j])
 
         while arcsin_arg <= 1 and i - 1 > 0:
             i -= 1
 
-            downward_integral += ds / (np.cos(np.arcsin(np.sqrt(Bs / b0) * np.sin(alpha_eq))))
+            downward_integral += ds / (np.cos(np.arcsin(np.sqrt(Bs / b0) * np.sin(alpha_eqs[j]))))
 
             ds = np.linalg.norm(rr[i - 1] - rr[i])
             Bs = np.linalg.norm(field(rr[i - 1]))
-            arcsin_arg = np.sqrt(Bs / b0) * np.sin(alpha_eq)
+            arcsin_arg = np.sqrt(Bs / b0) * np.sin(alpha_eqs[j])
         
         Ts[j] = 0.5 * (upward_integral + downward_integral) / r_eq
         
-    smoothed_Ts = savgol_filter(Ts, window, polyord)
+    window_num = int(round(steps * window))
+    if window_num % 2 == 0:
+        window_num += 1
+
+    smoothed_Ts = savgol_filter(Ts, window_num, polyord)
     
+    @njit
     def T(alpha_eq):
         return np.interp(alpha_eq, alpha_eqs, smoothed_Ts)
     
-    return np.vectorize(T)
+    return T
 
 
 def harris_kappa(E, m, q, alpha_eq, b0x, sigma, L_cs):

@@ -10,6 +10,12 @@ from ngeopack import t04 as ext_t04
 
 from cptsolver.utils import Re, inv_Re
 
+def sum_field(b_field_1, b_field_2):
+    @njit
+    def field(r, t=0.):
+        return b_field_1(r) + b_field_2(r)
+
+    return field
 
 def zero_field():
     '''

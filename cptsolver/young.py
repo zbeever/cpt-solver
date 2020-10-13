@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import constants as sp
+from numba import njit, prange
 
 from cptsolver.utils import eV_to_J, field_line, b_along_path, flc, Re
 
@@ -173,6 +174,7 @@ def epsilon_harris(E, q, m, b0x, sigma, L_cs):
     return p / (np.abs(q) * (sigma * b0x) * (sigma * L_cs))
 
 
+@njit
 def A_max(eps, z1, z2):
     '''
     A_max parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -197,6 +199,7 @@ def A_max(eps, z1, z2):
     return np.exp(c_A(eps)) * (z1**a_1A(eps) * z2**a_2A(eps) + D_A(eps))
 
 
+@njit
 def F_max(eps, z1, z2):
     '''
     F_max parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -221,6 +224,7 @@ def F_max(eps, z1, z2):
     return np.exp(c_F(eps)) * (z1**a_1F(eps) * z2**a_2F(eps) + D_F(eps))
 
 
+@njit
 def A(eps, z1, z2, alpha_eq):
     '''
     A parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -248,6 +252,7 @@ def A(eps, z1, z2, alpha_eq):
     return A_max(eps, z1, z2) * N(eps) * np.sin(omega_A(eps) * alpha_eq) * np.cos(alpha_eq)**b_A(eps)
 
 
+@njit
 def F(eps, z1, z2, alpha_eq):
     '''
     F parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -275,6 +280,7 @@ def F(eps, z1, z2, alpha_eq):
     return F_max(eps, z1, z2) * np.cos(omega_F(eps) * alpha_eq) * np.cos(alpha_eq)**b_F(eps)
 
 
+@njit
 def N(eps):
     '''
     N parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -295,6 +301,7 @@ def N(eps):
     return 1. / np.amax(quantity)
 
 
+@njit
 def omega_A(eps):
     '''
     omega_A parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -310,9 +317,10 @@ def omega_A(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    return 1.0513540 + 0.13513581*eps - 0.50787555*eps**2
+    return 1.0513540 + 0.13513581 * eps - 0.50787555 * eps**2
 
 
+@njit
 def q(eps, coefs):
     '''
     Helper function for the fitted parameters whose coefficients are listed in Table 2 in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -331,12 +339,11 @@ def q(eps, coefs):
         The final polynomial in epsilon**-1
     '''
 
-    quantity = 0
-    for n, qn in enumerate(coefs):
-        quantity += qn * eps**(-n)
-    return quantity
+    N = len(coefs)
+    return np.sum(coefs * eps**(-np.arange(0, N)))
 
 
+@njit
 def c_A(eps):
     '''
     c_A parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -352,10 +359,11 @@ def c_A(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    coefs = [1.0663037, -1.0944973, 0.016679378, -0.00049938987]
+    coefs = np.array([1.0663037, -1.0944973, 0.016679378, -0.00049938987])
     return q(eps, coefs)
 
 
+@njit
 def a_1A(eps):
     '''
     a_1A parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -371,10 +379,11 @@ def a_1A(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    coefs = [-0.35533865, 0.12800347, 0.0017113113]
+    coefs = np.array([-0.35533865, 0.12800347, 0.0017113113])
     return q(eps, coefs)
 
 
+@njit
 def a_2A(eps):
     '''
     a_2A parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -390,10 +399,11 @@ def a_2A(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    coefs = [0.23156321, 0.15561211, -0.0018604330]
+    coefs = np.array([0.23156321, 0.15561211, -0.0018604330])
     return q(eps, coefs)
 
 
+@njit
 def D_A(eps):
     '''
     D_A parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -409,10 +419,11 @@ def D_A(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    coefs = [-0.49667826, -0.0081941799, 0.0013621659]
+    coefs = np.array([-0.49667826, -0.0081941799, 0.0013621659])
     return q(eps, coefs)
 
 
+@njit
 def c_F(eps):
     '''
     c_F parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -428,10 +439,11 @@ def c_F(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    coefs = [2.1127103, -2.1339384, 0.068354519, -0.0033623678]
+    coefs = np.array([2.1127103, -2.1339384, 0.068354519, -0.0033623678])
     return q(eps, coefs)
 
 
+@njit
 def a_1F(eps):
     '''
     a_1F parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -447,10 +459,11 @@ def a_1F(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    coefs = [-0.95013179, 0.34678755, -2.1132763e-5]
+    coefs = np.array([-0.95013179, 0.34678755, -2.1132763e-5])
     return q(eps, coefs)
 
 
+@njit
 def a_2F(eps):
     '''
     a_2F parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -466,10 +479,11 @@ def a_2F(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    coefs = [1.2278829, 0.18332446, 0.0041818697]
+    coefs = np.array([1.2278829, 0.18332446, 0.0041818697])
     return q(eps, coefs)
 
 
+@njit
 def D_F(eps):
     '''
     D_F parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -485,10 +499,11 @@ def D_F(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    coefs = [-0.31583655, -0.026062916, 0.0029116064]
+    coefs = np.array([-0.31583655, -0.026062916, 0.0029116064])
     return q(eps, coefs)
 
 
+@njit
 def b_A(eps):
     '''
     b_A parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -504,10 +519,11 @@ def b_A(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    coefs = [-0.51057275, 0.93651781, -0.031690658]
+    coefs = np.array([-0.51057275, 0.93651781, -0.031690658])
     return q(eps, coefs)
 
 
+@njit
 def omega_F(eps):
     '''
     omega_F parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -523,10 +539,11 @@ def omega_F(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    coefs = [1.3295169, 0.45892579, -0.018710078]
+    coefs = np.array([1.3295169, 0.45892579, -0.018710078])
     return q(eps, coefs)
 
 
+@njit
 def b_F(eps):
     '''
     b_F parameter in Young et al. (2002), DOI: 10.1029/2000JA000294
@@ -542,10 +559,11 @@ def b_F(eps):
         See Young et al. (2002), DOI: 10.1029/2000JA000294
     '''
 
-    coefs = [-0.53875507, 0.69089153, 0.017921165]
+    coefs = np.array([-0.53875507, 0.69089153, 0.017921165])
     return q(eps, coefs)
 
 
+@njit
 def D_aa(eps, z1, z2, alpha_eq, T):
     '''
     The bounce-averaged equatorial pitch angle diffusion coefficient in Young et al. (2008), DOI: 10.1029/2006JA012133
@@ -578,6 +596,7 @@ def D_aa(eps, z1, z2, alpha_eq, T):
     return num / denom
 
 
+@njit
 def T_dipole(alpha_eq):
     '''
     Normalized bounce time for a dipole field.
