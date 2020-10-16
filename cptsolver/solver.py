@@ -9,7 +9,7 @@ from numba import njit, prange
 
 from cptsolver.integrators import relativistic_boris
 from cptsolver.distributions import delta
-from cptsolver.utils import Re, field_line, b_along_path, velocity_vec, solve_traj, format_bytes, solve_sys
+from cptsolver.utils import Re, field_line, b_along_path, velocity_vec, solve_traj, format_bytes, solve_sys, gyrovector
 
 
 class solver:
@@ -227,7 +227,7 @@ class solver:
         self.particle_properties = np.zeros((self.n, 2))
 
         for i in tqdm.tqdm(range(self.n)):
-            r = r_dist()
+            R = r_dist()
             K = E_dist()
 
             pitch_angle = pitch_ang_dist()
@@ -241,10 +241,10 @@ class solver:
             m = m_dist()
             q = q_dist()
 
-            self.initial_conditions[i, 0] = r
-            self.initial_conditions[i, 1] = velocity_vec(r, K, m, self.b_field, pitch_angle, phase_angle)
-            self.initial_conditions[i, 2] = self.b_field(r)
-            self.initial_conditions[i, 3] = self.e_field(r)
+            self.initial_conditions[i, 1] = velocity_vec(R, K, m, self.b_field, pitch_angle, phase_angle)
+            self.initial_conditions[i, 2] = self.b_field(R)
+            self.initial_conditions[i, 0] = R + gyrovector(self.initial_conditions[i, 1], self.initial_conditions[i, 2], m, q)
+            self.initial_conditions[i, 3] = self.e_field(R)
 
             self.particle_properties[i, 0] = m
             self.particle_properties[i, 1] = q
@@ -398,6 +398,20 @@ class solver:
         -------
         None
         '''
+
+        if hasattr(self, 'steps'):
+            del self.steps
+
+        if hasattr(self, 'dt'):
+            del self.dt
+
+        if hasattr(self, 'downsample'):
+            del self.downsample
+
+        if hasattr(self, 'history'):
+            del self.history
+
+        self.solved = False
 
         if not self.populated:
             raise NameError('System not yet populated. Cannot solve without initial conditions.')
