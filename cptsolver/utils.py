@@ -273,53 +273,68 @@ def harris_params_from_txx(field, L, L_cs, t=0., tol=1e-5, eps=1e-1):
     return b0x, sigma, L_cs
 
 
-def get_txx_params(qin_denton_filename, omni_filename, timestamp, model='t04'):
+def get_t07_params(ts07d_dir, omni_filename, timestamp):
     '''
-    Given the 1-minute datasets available from http://virbo.org/QinDenton and https://omniweb.gsfc.nasa.gov/form/omni_min.html,
-    parses the data for input to the Tsyganenko models.
+    Given the dynamic coefficients from: https://rbspgway.jhuapl.edu/analysis_models, parses the data for input
+    to the TS07D model. Refrain from calling this directory, as this function cannot interpolate between dynamic coefficient
+    files. Instead, call the get_txx_params function defined below.
 
     Parameters
     ----------
-    qin_denton_filename : string
-        The path to the Qin-Denton file. This should be the 1 minute increment dataset. Do not include the extension. The format should be .mat.
+    ts07d_dir : string
+        The path to the directory containing folders of dynamic coefficients for the TS07D model. The format should be .par.
 
     omni_filename : string
         The path to the OMNI files. This should include the x, y, and z components of the solar wind velocity. Do not include the extension. Their formats should be .lst and .fmt.
 
     timestamp : datetime obj
-        The data and time to consider.
-
-    model : string, optional
-        The model for which to format the parameters. Use either 't89', 't96', 't01', or 't04'. Defaults to 't04'.
+        The date and time to consider.
 
     Returns
     -------
-    parmod : int / float[10]
-        The parameter array to be input into the Tsyganenko model. For the T89 model this is an integer. For all the others this is a 10 element list of floats.
+    parmod : float[101]
+        A 101 element list of model parameters.
+
+    ps : float
+        The dipole axis tilt in radians.
+
+    pdyn : float
+        The dynamic solar wind pressure.
 
     ut : int
         The time in seconds since 1/1/1970.
 
     v_sw : float[3]
         The velocity vector for the solar wind.
-
     '''
 
-    data = loadmat(qin_denton_filename + '.mat')
-    prev_days = 0
-
-    for i in range(timestamp.month - 1):
-        prev_days += monthrange(timestamp.year, i + 1)[1]
-
-    doy = prev_days + timestamp.day
-
-    ind_for_year = np.argwhere(data['Year'] == timestamp.year)[:, 0]
-    ind_for_month = np.argwhere(data['DOY'][ind_for_year] == doy)[:, 0]
-    ind_for_hour = np.argwhere(data['hour'][ind_for_year][ind_for_month] == timestamp.hour)[:, 0]
-    ind_for_min = ind_for_year[ind_for_month][ind_for_hour][timestamp.minute]
+    parmod = np.empty(101)
+    ps = 0.0
+    pdyn = 0.0
 
     t0 = datetime(1970, 1, 1)
     ut = (timestamp - t0).total_seconds()
+    
+    year = timestamp.year
+    doy = str(timestamp.timetuple().tm_yday).zfill(3)
+    hour = timestamp.hour
+    minute = str(timestamp.minute).zfill(2)
+
+    file = open(f'{ts07d_dir}/{year}_{doy}/{year}_{doy}_{hour}_{minute}.par')
+    lines = file.readlines()
+    
+    i = 0
+    for line in lines:
+        if i < 101:
+            parmod[i] = float(line[0:16])
+        
+        if i == 105:
+            pdyn = float(line[8:22])
+            
+        if i == 106:
+            ps = float(line[8:22])
+            
+        i += 1
 
     v_sw_data = open(omni_filename + '.lst')
     v_sw_form = open(omni_filename + '.fmt')
@@ -339,50 +354,170 @@ def get_txx_params(qin_denton_filename, omni_filename, timestamp, model='t04'):
     for line in v_sw_data:
         line_data = line.split()
         
-        year   = int(line_data[0])
-        line_doy    = int(line_data[1])
-        hour   = int(line_data[2])
-        minute = int(line_data[3])
+        year     = int(line_data[0])
+        line_doy = int(line_data[1])
+        hour     = int(line_data[2])
+        minute   = int(line_data[3])
         
-        if year == timestamp.year and line_doy == doy and hour == timestamp.hour and minute == timestamp.minute:
+        if year == timestamp.year and line_doy == timestamp.timetuple().tm_yday and hour == timestamp.hour and minute == timestamp.minute:
             v_sw[0] = float(line_data[v_inds[0]])
             v_sw[1] = float(line_data[v_inds[1]])
             v_sw[2] = float(line_data[v_inds[2]])
             break
 
     v_sw_data.close()
-
-    kp    = int(round(data['Kp'][ind_for_min][0]))
-
-    pdyn  = data['Pdyn'][ind_for_min][0]
-    dst   = data['Dst'][ind_for_min][0]
-    byimf = data['ByIMF'][ind_for_min][0]
-    bzimf = data['BzIMF'][ind_for_min][0]
-
-    g1    = data['G1'][ind_for_min][0]
-    g2    = data['G2'][ind_for_min][0]
-
-    w1    = data['W1'][ind_for_min][0]
-    w2    = data['W2'][ind_for_min][0]
-    w3    = data['W3'][ind_for_min][0]
-    w4    = data['W4'][ind_for_min][0]
-    w5    = data['W5'][ind_for_min][0]
-    w6    = data['W6'][ind_for_min][0]
-
-    if model == 't89':
-        return kp, ut, v_sw
-    elif model == 't96':
-        parmod = np.array([pdyn, dst, byimf, bzimf, 0., 0., 0., 0., 0., 0.])
-        return parmod, ut, v_sw
-    elif model == 't01':
-        parmod = np.array([pdyn, dst, byimf, bzimf, g1, g2, 0., 0., 0., 0.])
-        return parmod, ut, v_sw
-    elif model == 't04':
-        parmod = np.array([pdyn, dst, byimf, bzimf, w1, w2, w3, w4, w5, w6])
-        return parmod, ut, v_sw
-    else:
-        raise NameError('Model type not recognized. Use t89/t96/t01/t04.')
         
+    return parmod, ps, pdyn, ut, v_sw
+
+
+def get_txx_params(qd_filename_or_ts07d, omni_filename, timestamp, model='ts07d'):
+    '''
+    Given the 1-minute datasets available from http://virbo.org/QinDenton and https://omniweb.gsfc.nasa.gov/form/omni_min.html,
+    parses the data for input to the T89, T96, T01, and T04 models.
+
+    Alternatively, given the dynamic coefficients from: https://rbspgway.jhuapl.edu/analysis_models, parses the data for input
+    to the TS07D model.
+
+    Parameters
+    ----------
+    qd_filename_or_ts07d : string
+        This will be either: The path to the Qin-Denton file. This should be the 1 minute increment dataset. Do not include the extension. The format should be .mat.
+                             The path to the directory containing folders of dynamic coefficients for the TS07D model. The format should be .par.
+
+    omni_filename : string
+        The path to the OMNI files. This should include the x, y, and z components of the solar wind velocity. Do not include the extension. Their formats should be .lst and .fmt.
+
+    timestamp : datetime obj
+        The data and time to consider.
+
+    model : string, optional
+        The model for which to format the parameters. Use either 't89', 't96', 't01', or 't04'. Defaults to 't04'.
+
+    Returns
+    -------
+    parmod : int / float[10] / float[101]
+        The parameter array to be input into the Tsyganenko model. For the T89 model this is an integer. For the T96, T01, and T04 models this is a 10 element list of floats.
+        For the TS07D model this is a 101 element list of floats.
+
+    ps : float (only for TS07D model)
+        The dipole axis tilt in radians.
+
+    pdyn : float (only for TS07D model)
+        The dynamic solar wind pressure.
+
+    ut : int
+        The time in seconds since 1/1/1970.
+
+    v_sw : float[3]
+        The velocity vector for the solar wind.
+    '''
+
+    if model != 'ts07d':
+        data = loadmat(f'{qin_denton_filename}.mat')
+        prev_days = 0
+
+        for i in range(timestamp.month - 1):
+            prev_days += monthrange(timestamp.year, i + 1)[1]
+
+        doy = prev_days + timestamp.day
+
+        ind_for_year = np.argwhere(data['Year'] == timestamp.year)[:, 0]
+        ind_for_month = np.argwhere(data['DOY'][ind_for_year] == doy)[:, 0]
+        ind_for_hour = np.argwhere(data['hour'][ind_for_year][ind_for_month] == timestamp.hour)[:, 0]
+        ind_for_min = ind_for_year[ind_for_month][ind_for_hour][timestamp.minute]
+
+        t0 = datetime(1970, 1, 1)
+        ut = (timestamp - t0).total_seconds()
+
+        v_sw_data = open(omni_filename + '.lst')
+        v_sw_form = open(omni_filename + '.fmt')
+
+        v_inds = [-1, -1, -1]
+
+        for line in v_sw_form:
+            for i, dim in enumerate(['x', 'y', 'z']):
+                is_line = line.find(f'V{dim} Velocity')
+                if is_line >= 0:
+                    v_inds[i] = int(line.split()[0]) - 1
+                    break
+
+        v_sw_form.close()
+        v_sw = np.zeros(3)
+
+        for line in v_sw_data:
+            line_data = line.split()
+            
+            year   = int(line_data[0])
+            line_doy    = int(line_data[1])
+            hour   = int(line_data[2])
+            minute = int(line_data[3])
+            
+            if year == timestamp.year and line_doy == doy and hour == timestamp.hour and minute == timestamp.minute:
+                v_sw[0] = float(line_data[v_inds[0]])
+                v_sw[1] = float(line_data[v_inds[1]])
+                v_sw[2] = float(line_data[v_inds[2]])
+                break
+
+        v_sw_data.close()
+
+        kp    = int(round(data['Kp'][ind_for_min][0]))
+
+        pdyn  = data['Pdyn'][ind_for_min][0]
+        dst   = data['Dst'][ind_for_min][0]
+        byimf = data['ByIMF'][ind_for_min][0]
+        bzimf = data['BzIMF'][ind_for_min][0]
+
+        g1    = data['G1'][ind_for_min][0]
+        g2    = data['G2'][ind_for_min][0]
+
+        w1    = data['W1'][ind_for_min][0]
+        w2    = data['W2'][ind_for_min][0]
+        w3    = data['W3'][ind_for_min][0]
+        w4    = data['W4'][ind_for_min][0]
+        w5    = data['W5'][ind_for_min][0]
+        w6    = data['W6'][ind_for_min][0]
+
+        if model == 't89':
+            return kp, ut, v_sw
+        elif model == 't96':
+            parmod = np.array([pdyn, dst, byimf, bzimf, 0., 0., 0., 0., 0., 0.])
+            return parmod, ut, v_sw
+        elif model == 't01':
+            parmod = np.array([pdyn, dst, byimf, bzimf, g1, g2, 0., 0., 0., 0.])
+            return parmod, ut, v_sw
+        elif model == 't04':
+            parmod = np.array([pdyn, dst, byimf, bzimf, w1, w2, w3, w4, w5, w6])
+            return parmod, ut, v_sw
+        else:
+            raise NameError('Model type not recognized. Use t89/t96/t01/t04/ts07d.')
+    else:
+        year = timestamp.year
+        doy = str(timestamp.timetuple().tm_yday).zfill(3)
+        hour = timestamp.hour
+        minute = str(timestamp.minute).zfill(2)
+
+        if timestamp.minute % 5 == 0: 
+            parmod, ps, pdyn, ut, v_sw = get_t07_params(qd_filename_or_ts07d, omni_filename, timestamp)
+            return parmod, ps, pdyn, ut, v_sw
+        else:
+            t = (timestamp.minute - int(timestamp.minute // 5) * 5) / 5.0
+
+            timestamp0 = datetime(timestamp.year, timestamp.month, timestamp.day, timestamp.hour, int(timestamp.minute // 5) * 5)
+            timestamp1 = datetime(timestamp.year, timestamp.month, timestamp.day, timestamp.hour, int(timestamp.minute // 5) * 5 + 5)
+
+            print(timestamp0.minute, timestamp1.minute)
+
+            parmod0, ps0, pdyn0, ut0, v_sw0 = get_t07_params(qd_filename_or_ts07d, omni_filename, timestamp0)
+            parmod1, ps1, pdyn1, ut1, v_sw1 = get_t07_params(qd_filename_or_ts07d, omni_filename, timestamp1)
+
+            parmod = parmod0 * (1.0 - t) + parmod1 * t
+            ps = ps0 * (1.0 - t) + ps1 * t
+            pdyn = pdyn0 * (1.0 - t) + pdyn1 * t
+            ut = ut0 * (1.0 - t) + ut1 * t
+            v_sw = v_sw0 * (1.0 - t) + v_sw1 * t
+
+            return parmod, ps, pdyn, ut, v_sw
+
 
 def format_bytes(size):
     '''
@@ -557,10 +692,10 @@ def local_onb(r, b_field, t=0.):
     else:
         local_z = local_z / np.linalg.norm(local_z)
 
-    local_x = -r
+    local_x = curvature_vec(b_field, r)
     local_x = local_x - dot(local_x, local_z) * local_z
     if np.dot(local_x, local_x) == 0:
-        local_x = np.array([-1., 0., 0.])
+        local_x = np.array([1., 0., 0.])
     else:
         local_x = local_x / np.linalg.norm(local_x)
 
@@ -690,6 +825,65 @@ def jacobian(field, r, t=0., eps=1e-6):
     jac[:, 2] = (field(r + z_offset, t) - field(r - z_offset, t)) / (2 * eps)
 
     return jac
+
+
+@njit
+def curvature_vec(field, r, t=0., eps=1e-1):
+    '''
+    Numerically finds the radius of curvature of the field line at a given point.
+
+    Parameters
+    ----------
+    field(r, t=0.) : function
+        The field function (this is obtained through the currying functions in fields.py). Accepts a position (float[3])
+        and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    r : float[3]
+        The location at which to find the field line curvature.
+
+    t : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to 0.
+
+    eps : float, optional
+        The size of epsilon for use in the definition of the partial derivative. Defaults to 1e-6.
+
+    Returns
+    -------
+    Rc : float
+        The radius of curvature (in m).
+    '''
+
+    x_offset = np.array([eps, 0.0, 0.0])
+    y_offset = np.array([0.0, eps, 0.0])
+    z_offset = np.array([0.0, 0.0, eps])
+    
+    b = field(r, t)
+    b /= np.linalg.norm(b)
+
+    fx1 = field(r + x_offset, t)
+    fx1 /= np.linalg.norm(fx1)
+    
+    fx0 = field(r - x_offset, t)
+    fx0 /= np.linalg.norm(fx0)
+    
+    fy1 = field(r + y_offset, t)
+    fy1 /= np.linalg.norm(fy1)
+    
+    fy0 = field(r - y_offset, t)
+    fy0 /= np.linalg.norm(fy0)
+    
+    fz1 = field(r + z_offset, t)
+    fz1 /= np.linalg.norm(fz1)
+    
+    fz0 = field(r - z_offset, t)
+    fz0 /= np.linalg.norm(fz0)
+
+    J = np.zeros((3, 3))
+    J[:, 0] = (fx1 - fx0) / (2 * eps)
+    J[:, 1] = (fy1 - fy0) / (2 * eps)
+    J[:, 2] = (fz1 - fz0) / (2 * eps)
+
+    return np.dot(J, b)
 
 
 @njit
@@ -1030,7 +1224,54 @@ def adiabaticity(field, rr, K, t=0., tol=1e-6, m=sp.m_e, q=-sp.e):
 
 
 @njit
-def solve_traj(i, steps, dt, initial_conditions, particle_properties, integrator, drop_lost, downsample):
+def solve_traj_for_loss(i, steps, dt, initial_conditions, particle_properties, integrator):
+    '''
+    Solves a single particle trajectory.
+
+    Parameters
+    ----------
+    i : int
+        The index of the particle to solve.
+
+    steps : int
+        The number of steps to iterate the solver.
+
+    dt : float
+        The duration of each step.
+
+    velocity : float[N, M, 3]
+        A history of particle velocities. The first index denotes the particle, the second the timestep, and the third the dimension.
+
+    initial_conditions : float[N, 4, 3]
+        Array of initial conditions. The first index denotes the particle, the second the quantity (1 = position, 2 = velocity, 3 = magnetic field, 4 = electric field), and the third the dimension.
+
+    particle_properties : float[N, 2]
+        Array of particle properties. The first index denotes the mass and the second the charge.
+
+    integrator(state, intrinsic, dt, step_num) : function
+        The integrator function (this is obtained through the currying functions in integrators.py).
+
+    Returns
+    -------
+    hist_indiv : float[M, 4, 3]
+        The complete history of a single particle.
+    '''
+
+    state = np.copy(initial_conditions[i, :, :])
+    m_over_q = particle_properties[i, 0] / particle_properties[i, 1]
+
+    for j in range(steps - 1):
+        dt_temp = m_over_q / np.linalg.norm(state[2, :])
+        state = integrator(state, particle_properties[i, :], dt_temp, j)
+        r = state[0, :]
+
+        if dot(r, r) <= (Re + 100e3)**2:
+            return True
+
+    return False
+
+@njit
+def solve_traj(i, steps, dt, initial_conditions, particle_properties, integrator, drop_lost, downsample, variable_timestep=False):
     '''
     Solves a single particle trajectory.
 
@@ -1069,20 +1310,48 @@ def solve_traj(i, steps, dt, initial_conditions, particle_properties, integrator
         The complete history of a single particle.
     '''
 
-    hist_indiv = np.zeros((steps, 4, 3))
-    hist_indiv[0, :, :] = np.copy(initial_conditions[i, :, :])
+    if variable_timestep:
+        T = steps * dt
 
-    if (hist_indiv[0, :, :] == np.zeros((4, 3))).all():
-        return np.zeros((int(steps // downsample), 4, 3))
+        hist_indiv = np.zeros((steps, 4, 3))
+        hist_indiv[0, :, :] = np.copy(initial_conditions[i, :, :])
+        state = np.copy(initial_conditions[i, :, :])
+        v = state[1, :]
+        gamma_v = 1 / np.sqrt(1 - dot(v, v) / sp.c**2)
 
-    for j in range(steps - 1):
-        hist_indiv[j + 1] = integrator(hist_indiv[j], particle_properties[i, :], dt, j)
+        m_over_q = 0.2 * np.pi * gamma_v * np.abs(particle_properties[i, 0] / particle_properties[i, 1])
+        current_step = 0
+        running_T = 0
 
-        if drop_lost:
-            if dot(hist_indiv[j + 1, 0, :], hist_indiv[j + 1, 0, :]) <= (Re + 100e3)**2:
-                break
+        while current_step < steps - 1:
+            var_dt = m_over_q / np.linalg.norm(state[2, :])
+            state = integrator(state, particle_properties[i, :], var_dt, 0)
+            running_T += var_dt
 
-    return hist_indiv[::downsample, :, :]
+            if (running_T - current_step * dt) // dt > 0:
+                hist_indiv[current_step + 1] = state
+                current_step += 1
+
+            if drop_lost:
+                if dot(state[0, :], state[0, :]) <= (Re + 100e3)**2:
+                    break
+
+        return hist_indiv[:, :, :]
+    else:
+        hist_indiv = np.zeros((steps, 4, 3))
+        hist_indiv[0, :, :] = np.copy(initial_conditions[i, :, :])
+
+        if (hist_indiv[0, :, :] == np.zeros((4, 3))).all():
+            return np.zeros((int(steps // downsample), 4, 3))
+
+        for j in range(steps - 1):
+            hist_indiv[j + 1] = integrator(hist_indiv[j], particle_properties[i, :], dt, j)
+
+            if drop_lost:
+                if dot(hist_indiv[j + 1, 0, :], hist_indiv[j + 1, 0, :]) <= (Re + 100e3)**2:
+                    break
+
+        return hist_indiv[::downsample, :, :]
 
 
 @njit(parallel=True)

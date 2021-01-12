@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 from scipy import constants as sp
 from numba import njit, jit
@@ -7,15 +9,254 @@ from ngeopack import t89 as ext_t89
 from ngeopack import t96 as ext_t96
 from ngeopack import t01 as ext_t01
 from ngeopack import t04 as ext_t04
+from ngeopack import t07 as ext_t07
 
 from cptsolver.utils import Re, inv_Re
 
-def sum_field(b_field_1, b_field_2):
+def sum_field(field_1, field_2):
+    '''
+    Sums two fields together.
+
+    Parameters
+    ----------
+    field_1(r, t=0.) : function
+        A field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    field_2(r, t=0.) : function
+        A field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    Returns
+    -------
+    field(r, t=0.) : function
+        A field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+    '''
+
     @njit
     def field(r, t=0.):
-        return b_field_1(r) + b_field_2(r)
+        return field_1(r) + field_2(r)
 
     return field
+
+
+def interpolated_field(b_field, xs, ys, zs, ds):
+    '''
+    Given a field, a bounding volume (in Earth radii), and a step size (in Earth radii), returns an interpolated field.
+    This method makes use of a uniform three dimensional grid of samples, interpolating them with cubic Hermite splines.
+    The discrepancy between the original and interpolated field is estimated at the end of this function.
+
+    Parameters
+    ----------
+    b_field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    xs : float[2]
+        The boundaries along the x axis (in Earth radii). 
+
+    ys : float[2]
+        The boundaries along the y axis (in Earth radii). 
+
+    zs : float[2]
+        The boundaries along the z axis (in Earth radii). 
+
+    ds : float
+        The grid sample size (in Earth radii).
+
+    Returns
+    -------
+    b_field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+
+    '''
+
+    # Because tricubic interpolation requires one point preceeding and two points proceeding the cube of 
+    # interest, we start sampling one block before the specified lower limit and stop two blocks after
+    # the specified upper limit
+    x_list = np.arange(xs[0] - ds, (np.ceil((xs[1] - xs[0]) / ds) + 3) * ds + xs[0], ds) * Re
+    y_list = np.arange(ys[0] - ds, (np.ceil((ys[1] - ys[0]) / ds) + 3) * ds + ys[0], ds) * Re
+    z_list = np.arange(zs[0] - ds, (np.ceil((zs[1] - zs[0]) / ds) + 3) * ds + zs[0], ds) * Re
+    
+    # The 'further' point
+    r0 = np.array([x_list[0], y_list[0], z_list[0]])
+
+    # The number of samples
+    n_xs = x_list.size
+    n_ys = y_list.size
+    n_zs = z_list.size
+
+    # The magnetic field at each sample point
+    b_vals = np.empty((n_xs, n_ys, n_zs, 3))
+    
+    print('Sampling the magnetic field...')
+    
+    time.sleep(0.33)
+    
+    for i in tqdm.tqdm(range(len(x_list))):
+        for j in range(len(y_list)):
+            for k in range(len(z_list)):
+                r_temp = np.array([x_list[i], y_list[j], z_list[k]])
+                if (r_temp == 0.0).all():
+                    r_temp += np.array([1e-6, 1e-6, 1e-6])
+                b_vals[i, j, k, :] = b_field(r_temp)
+
+    @njit
+    def CINT(u, pnm1, pn, pn1, pn2):
+        '''
+        The Catmull-Rom cubic Hermite spline interpolation function.
+        
+        Parameters
+        ----------
+        u : float
+            The parameter specifying the point at which to find the interpolated value. This value's range
+            is between 0 and 1 and represents the location of the point between p_n and p_n+1
+            
+        pnm1 : float
+            The sample point twice preceeding the point of interest, p_n-1
+            
+        pn : float
+            The sample point preceeding the point of interest, p_n
+            
+        pn1 : float
+            The sample point proceeding the point of interest, p_n+1
+            
+        pn2 : float
+            The sample point twice proceeding the point of interest, p_n+2
+        
+        Returns
+        -------
+        val : float
+            The interpolated value at the point parameterized by u, p_n, and p_n+1.
+        '''
+        
+        return 0.5 * (((-pnm1 + 3 * pn - 3 * pn1 + pn2) * u + (2 * pnm1 - 5 * pn + 4 * pn1 - pn2)) * u + (-pnm1 + pn1)) * u + pn
+
+    @njit
+    def t(i, j, z, n_z, s):
+        '''
+        The t function from the tricubic interpolation algorithm on the Wikipedia page: https://en.wikipedia.org/wiki/Tricubic_interpolation
+    
+        Parameters
+        ----------
+        i : int
+            The x block.
+        
+        j : int
+            The y block.
+            
+        z : float
+            The normalized z location between block n_z and n_z + 1.
+        
+        n_z : int
+            The z block preceeding the point of interest.
+        
+        s : float[:, :, :, 3]
+            The array of magnetic field samples.
+            
+        Returns
+        -------
+        val : float[3]
+            The z-interpolated magnetic field vector. 
+        '''
+        
+        return CINT(z, s[i, j, n_z - 1], s[i, j, n_z], s[i, j, n_z + 1], s[i, j, n_z + 2])
+
+    @njit
+    def u(i, y, z, n_y, n_z, s):
+        '''
+        The u function from the tricubic interpolation algorithm on the Wikipedia page: https://en.wikipedia.org/wiki/Tricubic_interpolation
+    
+        Parameters
+        ----------
+        i : int
+            The x block.
+        
+        y : float
+            The normalized y location between block n_y and n_y + 1.
+            
+        z : float
+            The normalized z location between block n_z and n_z + 1.
+            
+        n_y : int
+            The y block preceeding the point of interest.
+        
+        n_z : int
+            The z block preceeding the point of interest.
+        
+        s : float[:, :, :, 3]
+            The array of magnetic field samples.
+            
+        Returns
+        -------
+        val : float[3]
+            The y- and z-interpolated magnetic field vector. 
+        '''
+        
+        return CINT(y, t(i, n_y - 1, z, n_z, s), t(i, n_y, z, n_z, s), t(i, n_y + 1, z, n_z, s), t(i, n_y + 2, z, n_z, s))
+
+    @njit
+    def field(r, t=0.0):
+        '''
+        An edited version of the f function from the tricubic interpolation algorithm on the Wikipedia page: https://en.wikipedia.org/wiki/Tricubic_interpolation
+    
+        Parameters
+        ----------
+        r : float[3]
+            The location at which the magnetic field is to be evaluated.
+            
+        t : float, optional
+            Usually the time at which the field should be evaluated. Here, this is a dummy variable.
+            For some reason, this function runs 10x slower if called without t, so make sure to always
+            call field(r, 0.0).
+            
+        Returns
+        -------
+        val : float[3]
+            The interpolated magnetic field vector.
+        '''
+
+        r_temp = ((r - r0) / Re) / ds
+        
+        # Find the x, y, and z blocks preceeding the point of interest
+        n_x, n_y, n_z = r_temp.astype(np.int64)
+        
+        # Find the normalized x, y, and z distances between the preceeding and proceeding blocks
+        x, y, z = r_temp - np.array([n_x, n_y, n_z])
+        
+        return CINT(x, u(n_x - 1, y, z, n_y, n_z, b_vals), u(n_x, y, z, n_y, n_z, b_vals), u(n_x + 1, y, z, n_y, n_z, b_vals), u(n_x + 2, y, z, n_y, n_z, b_vals))
+    
+    n_samples = 10000
+    error_max = -np.inf
+    error_avg = 0.0
+    loc = np.zeros(3)
+    
+    print('Estimating error...')
+    
+    time.sleep(0.33)
+    
+    for i in tqdm.tqdm(range(n_samples)):
+        x = np.random.uniform(xs[0], np.amin([xs[1], -1.0]))
+        y = np.random.uniform(ys[0], ys[1])
+        z = np.random.uniform(zs[0], zs[1])
+
+        r = np.array([x, y, z]) * Re
+        b_actual = b_field(r, 0.0)
+        b_interp = field(r, 0.0)
+        error = np.linalg.norm(b_interp - b_actual) / np.linalg.norm(b_actual) * 100
+        
+        error_avg += error
+
+        if error > error_max:
+            error_max = error
+            loc = r
+            
+    error_avg /= n_samples
+
+    time.sleep(0.33)
+            
+    print(f'Average error is {error_avg:.4f}%')
+    print(f'Maximum error is {error_max:.4f}% at r = {loc / Re}')
+    
+    return field
+
 
 def zero_field():
     '''
@@ -459,6 +700,39 @@ def t04(par, t0=4.01e7, sw_v=np.array([-400., 0., 0.])):
 
     return field
 
+
+def t07(par, ps, pdyn, t0=4.01e7, sw_v=np.array([-400., 0., 0.])):
+    '''
+    A model of Earth's magnetic field consisting of a superposition of the Tsyganenko 2007 model (DOI: 10.1029/2004JA010798) and the IGRF model.
+
+    Parameters
+    ----------
+    par : float[10]
+        A 10-element list containing the model parameters. These are
+
+    t0 : float, optional
+        The time (in seconds). Used for time-varying fields. Defaults to a time where the dipole tilt is approximately 0 degrees.
+
+    Returns
+    -------
+    field(r, t=0.) : function
+        The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
+    '''
+
+    ps_, a, g, h, rec = gp.recalc(t0, sw_v[0], sw_v[1], sw_v[2])
+
+    @njit
+    def field(r, t=0.):
+        x_gsm = r[0] * inv_Re
+        y_gsm = r[1] * inv_Re
+        z_gsm = r[2] * inv_Re
+
+        field_int = np.asarray(gp.igrf_gsm(x_gsm, y_gsm, z_gsm, a, g, h, rec))
+        field_ext = np.asarray(ext_t07.t07(par, ps, pdyn, x_gsm, y_gsm, z_gsm))
+
+        return (field_int + field_ext) * 1e-9
+
+    return field
 
 def xz_slice(field_func):
     '''
