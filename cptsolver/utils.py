@@ -413,7 +413,7 @@ def get_txx_params(qd_filename_or_ts07d, omni_filename, timestamp, model='ts07d'
     '''
 
     if model != 'ts07d':
-        data = loadmat(f'{qin_denton_filename}.mat')
+        data = loadmat(f'{qd_filename_or_ts07d}.mat')
         prev_days = 0
 
         for i in range(timestamp.month - 1):
@@ -503,9 +503,13 @@ def get_txx_params(qd_filename_or_ts07d, omni_filename, timestamp, model='ts07d'
             t = (timestamp.minute - int(timestamp.minute // 5) * 5) / 5.0
 
             timestamp0 = datetime(timestamp.year, timestamp.month, timestamp.day, timestamp.hour, int(timestamp.minute // 5) * 5)
-            timestamp1 = datetime(timestamp.year, timestamp.month, timestamp.day, timestamp.hour, int(timestamp.minute // 5) * 5 + 5)
 
-            print(timestamp0.minute, timestamp1.minute)
+            later_time = int(timestamp.minute // 5) * 5 + 5
+            if later_time < 60:
+                timestamp1 = datetime(timestamp.year, timestamp.month, timestamp.day, timestamp.hour, int(timestamp.minute // 5) * 5 + 5)
+            else:
+                timestamp1 = datetime(timestamp.year, timestamp.month, timestamp.day, timestamp.hour + 1, 0)
+
 
             parmod0, ps0, pdyn0, ut0, v_sw0 = get_t07_params(qd_filename_or_ts07d, omni_filename, timestamp0)
             parmod1, ps1, pdyn1, ut1, v_sw1 = get_t07_params(qd_filename_or_ts07d, omni_filename, timestamp1)
@@ -978,6 +982,7 @@ def field_line(field, r, t=0., tol=1e-5, max_iter=1000, planar=False):
         a = np.sign(direction)
         
         k1 = a * field(r, t)
+
         k1 /= np.linalg.norm(k1)
         k1 *= h
 
@@ -1000,6 +1005,9 @@ def field_line(field, r, t=0., tol=1e-5, max_iter=1000, planar=False):
         k6 = a * field(r - 0.2962962962963 * k1 + 2 * k2 - 1.3816764132554 * k3 + 0.45297270955166 * k4 - 0.275 * k5, t)
         k6 /= np.linalg.norm(k6)
         k6 *= h
+
+        if (k1 == 0).all() or (k2 == 0).all() or (k3 == 0).all() or (k4 == 0).all() or (k5 == 0).all() or (k6 == 0).all():
+            print(r)
 
         y_plus_1 = r + 0.11574074074074 * k1 + 0.54892787524366 * k3 + 0.53533138401559 * k4 - 0.2 * k5
         z_plus_1 = r + 0.11851851851852 * k1 + 0.51898635477583 * k3 + 0.50613149034202 * k4 - 0.18 * k5 + 0.036363636363636 * k6
