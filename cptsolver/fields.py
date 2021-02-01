@@ -3,6 +3,7 @@ import time
 import numpy as np
 from scipy import constants as sp
 from numba import njit, jit
+from tqdm import tqdm
 
 from ngeopack import geopack as gp
 from ngeopack import t89 as ext_t89
@@ -38,7 +39,7 @@ def sum_field(field_1, field_2):
     return field
 
 
-def interpolated_field(b_field, xs, ys, zs, ds):
+def interpolated_field(b_field, xs, ys, zs, ds, file_to_load=None, file_to_save=None, check_error=True):
     '''
     Given a field, a bounding volume (in Earth radii), and a step size (in Earth radii), returns an interpolated field.
     This method makes use of a uniform three dimensional grid of samples, interpolating them with cubic Hermite splines.
@@ -50,13 +51,13 @@ def interpolated_field(b_field, xs, ys, zs, ds):
         The field function. Accepts a position (float[3]) and time (float). Returns the field vector (float[3]) at that point in spacetime.
 
     xs : float[2]
-        The boundaries along the x axis (in Earth radii). 
+        The boundaries along the x axis (in Earth radii).
 
     ys : float[2]
-        The boundaries along the y axis (in Earth radii). 
+        The boundaries along the y axis (in Earth radii).
 
     zs : float[2]
-        The boundaries along the z axis (in Earth radii). 
+        The boundaries along the z axis (in Earth radii).
 
     ds : float
         The grid sample size (in Earth radii).
@@ -68,13 +69,13 @@ def interpolated_field(b_field, xs, ys, zs, ds):
 
     '''
 
-    # Because tricubic interpolation requires one point preceeding and two points proceeding the cube of 
+    # Because tricubic interpolation requires one point preceeding and two points proceeding the cube of
     # interest, we start sampling one block before the specified lower limit and stop two blocks after
     # the specified upper limit
     x_list = np.arange(xs[0] - ds, (np.ceil((xs[1] - xs[0]) / ds) + 3) * ds + xs[0], ds) * Re
     y_list = np.arange(ys[0] - ds, (np.ceil((ys[1] - ys[0]) / ds) + 3) * ds + ys[0], ds) * Re
     z_list = np.arange(zs[0] - ds, (np.ceil((zs[1] - zs[0]) / ds) + 3) * ds + zs[0], ds) * Re
-    
+
     # The 'further' point
     r0 = np.array([x_list[0], y_list[0], z_list[0]])
 
@@ -85,128 +86,134 @@ def interpolated_field(b_field, xs, ys, zs, ds):
 
     # The magnetic field at each sample point
     b_vals = np.empty((n_xs, n_ys, n_zs, 3))
-    
-    print('Sampling the magnetic field...')
-    
-    time.sleep(0.33)
-    
-    for i in tqdm.tqdm(range(len(x_list))):
-        for j in range(len(y_list)):
-            for k in range(len(z_list)):
-                r_temp = np.array([x_list[i], y_list[j], z_list[k]])
-                if (r_temp == 0.0).all():
-                    r_temp += np.array([1e-6, 1e-6, 1e-6])
-                b_vals[i, j, k, :] = b_field(r_temp)
+
+    if file_to_load != None:
+        b_vals = np.load(file_to_load)
+    else:
+        print('Sampling the magnetic field...')
+
+        time.sleep(0.33)
+
+        for i in tqdm(range(len(x_list))):
+            for j in range(len(y_list)):
+                for k in range(len(z_list)):
+                    r_temp = np.array([x_list[i], y_list[j], z_list[k]])
+                    if (r_temp == 0.0).all():
+                        r_temp += np.array([1e-6, 1e-6, 1e-6])
+                    b_vals[i, j, k, :] = b_field(r_temp)
+
+        if file_to_save != None:
+            np.save(file_to_save, b_vals)
 
     @njit
     def CINT(u, pnm1, pn, pn1, pn2):
         '''
         The Catmull-Rom cubic Hermite spline interpolation function.
-        
+
         Parameters
         ----------
         u : float
             The parameter specifying the point at which to find the interpolated value. This value's range
             is between 0 and 1 and represents the location of the point between p_n and p_n+1
-            
+
         pnm1 : float
             The sample point twice preceeding the point of interest, p_n-1
-            
+
         pn : float
             The sample point preceeding the point of interest, p_n
-            
+
         pn1 : float
             The sample point proceeding the point of interest, p_n+1
-            
+
         pn2 : float
             The sample point twice proceeding the point of interest, p_n+2
-        
+
         Returns
         -------
         val : float
             The interpolated value at the point parameterized by u, p_n, and p_n+1.
         '''
-        
+
         return 0.5 * (((-pnm1 + 3 * pn - 3 * pn1 + pn2) * u + (2 * pnm1 - 5 * pn + 4 * pn1 - pn2)) * u + (-pnm1 + pn1)) * u + pn
 
     @njit
     def t(i, j, z, n_z, s):
         '''
         The t function from the tricubic interpolation algorithm on the Wikipedia page: https://en.wikipedia.org/wiki/Tricubic_interpolation
-    
+
         Parameters
         ----------
         i : int
             The x block.
-        
+
         j : int
             The y block.
-            
+
         z : float
             The normalized z location between block n_z and n_z + 1.
-        
+
         n_z : int
             The z block preceeding the point of interest.
-        
+
         s : float[:, :, :, 3]
             The array of magnetic field samples.
-            
+
         Returns
         -------
         val : float[3]
-            The z-interpolated magnetic field vector. 
+            The z-interpolated magnetic field vector.
         '''
-        
+
         return CINT(z, s[i, j, n_z - 1], s[i, j, n_z], s[i, j, n_z + 1], s[i, j, n_z + 2])
 
     @njit
     def u(i, y, z, n_y, n_z, s):
         '''
         The u function from the tricubic interpolation algorithm on the Wikipedia page: https://en.wikipedia.org/wiki/Tricubic_interpolation
-    
+
         Parameters
         ----------
         i : int
             The x block.
-        
+
         y : float
             The normalized y location between block n_y and n_y + 1.
-            
+
         z : float
             The normalized z location between block n_z and n_z + 1.
-            
+
         n_y : int
             The y block preceeding the point of interest.
-        
+
         n_z : int
             The z block preceeding the point of interest.
-        
+
         s : float[:, :, :, 3]
             The array of magnetic field samples.
-            
+
         Returns
         -------
         val : float[3]
-            The y- and z-interpolated magnetic field vector. 
+            The y- and z-interpolated magnetic field vector.
         '''
-        
+
         return CINT(y, t(i, n_y - 1, z, n_z, s), t(i, n_y, z, n_z, s), t(i, n_y + 1, z, n_z, s), t(i, n_y + 2, z, n_z, s))
 
     @njit
     def field(r, t=0.0):
         '''
         An edited version of the f function from the tricubic interpolation algorithm on the Wikipedia page: https://en.wikipedia.org/wiki/Tricubic_interpolation
-    
+
         Parameters
         ----------
         r : float[3]
             The location at which the magnetic field is to be evaluated.
-            
+
         t : float, optional
             Usually the time at which the field should be evaluated. Here, this is a dummy variable.
             For some reason, this function runs 10x slower if called without t, so make sure to always
             call field(r, 0.0).
-            
+
         Returns
         -------
         val : float[3]
@@ -214,47 +221,48 @@ def interpolated_field(b_field, xs, ys, zs, ds):
         '''
 
         r_temp = ((r - r0) / Re) / ds
-        
+
         # Find the x, y, and z blocks preceeding the point of interest
         n_x, n_y, n_z = r_temp.astype(np.int64)
-        
+
         # Find the normalized x, y, and z distances between the preceeding and proceeding blocks
         x, y, z = r_temp - np.array([n_x, n_y, n_z])
-        
+
         return CINT(x, u(n_x - 1, y, z, n_y, n_z, b_vals), u(n_x, y, z, n_y, n_z, b_vals), u(n_x + 1, y, z, n_y, n_z, b_vals), u(n_x + 2, y, z, n_y, n_z, b_vals))
-    
+
     n_samples = 10000
     error_max = -np.inf
     error_avg = 0.0
     loc = np.zeros(3)
-    
-    print('Estimating error...')
-    
-    time.sleep(0.33)
-    
-    for i in tqdm.tqdm(range(n_samples)):
-        x = np.random.uniform(xs[0], np.amin([xs[1], -1.0]))
-        y = np.random.uniform(ys[0], ys[1])
-        z = np.random.uniform(zs[0], zs[1])
 
-        r = np.array([x, y, z]) * Re
-        b_actual = b_field(r, 0.0)
-        b_interp = field(r, 0.0)
-        error = np.linalg.norm(b_interp - b_actual) / np.linalg.norm(b_actual) * 100
-        
-        error_avg += error
+    if check_error:
+        print('Estimating error...')
 
-        if error > error_max:
-            error_max = error
-            loc = r
-            
-    error_avg /= n_samples
+        time.sleep(0.33)
 
-    time.sleep(0.33)
-            
-    print(f'Average error is {error_avg:.4f}%')
-    print(f'Maximum error is {error_max:.4f}% at r = {loc / Re}')
-    
+        for i in tqdm(range(n_samples)):
+            x = np.random.uniform(xs[0], np.amin([xs[1], -1.0]))
+            y = np.random.uniform(ys[0], ys[1])
+            z = np.random.uniform(zs[0], zs[1])
+
+            r = np.array([x, y, z]) * Re
+            b_actual = b_field(r, 0.0)
+            b_interp = field(r, 0.0)
+            error = np.linalg.norm(b_interp - b_actual) / np.linalg.norm(b_actual) * 100
+
+            error_avg += error
+
+            if error > error_max:
+                error_max = error
+                loc = r
+
+        error_avg /= n_samples
+
+        time.sleep(0.33)
+
+        print(f'Average error is {error_avg:.4f}%')
+        print(f'Maximum error is {error_max:.4f}% at r = {loc / Re}')
+
     return field
 
 
@@ -541,7 +549,7 @@ def t96(par, t0=4.0118e7, sw_v=np.array([-400., 0., 0.])):
 
         par[1] (Dst) : float
             The disturbance storm-time index, a measure of magnetic activity connected to the ring current. Values
-            are measured in nT. A value less than -50 nT indicates high geomagnetic activity. 
+            are measured in nT. A value less than -50 nT indicates high geomagnetic activity.
 
         par[2] (ByIMF) : float
             The y component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
@@ -591,7 +599,7 @@ def t01(par, t0=4.0118e7, sw_v=np.array([-400., 0., 0.])):
 
         par[1] (Dst) : float
             The disturbance storm-time index, a measure of magnetic activity connected to the ring current. Values are measured in nT. A value
-            less than -50 nT indicates high geomagnetic activity. 
+            less than -50 nT indicates high geomagnetic activity.
 
         par[2] (ByIMF) : float
             The y component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
@@ -650,7 +658,7 @@ def t04(par, t0=4.01e7, sw_v=np.array([-400., 0., 0.])):
 
         par[1] (Dst) : float
             The disturbance storm-time index, a measure of magnetic activity connected to the ring current. Values are measured in nT. A value
-            less than -50 nT indicates high geomagnetic activity. 
+            less than -50 nT indicates high geomagnetic activity.
 
         par[2] (ByIMF) : float
             The y component of the interplanetary magnetic field in nT. Total strength usually ranges from 1 to 37 nT.
@@ -753,7 +761,7 @@ def xz_slice(field_func):
     def field(r, t=0.):
         r_fixed = np.array([r[0], 0., r[2]])
         return field_func(r_fixed, t)
-    
+
     return field
 
 
@@ -770,7 +778,7 @@ def evolving_harris_cs_model(b0x, b0z, L_cs, lambd=40, gam=1):
         The z-component of the magnetic field (in T) at the x-y plane.
 
     L_cs(t) : function
-        The function describing the change in current sheet thickness (in m) over time.    
+        The function describing the change in current sheet thickness (in m) over time.
 
     lambd : float, optional
         The damping factor of the strengthening field. Reverts to the classical Harris model if set to None. Defaults to 40 (which forces mirroring at z ~ +-20 Re).
@@ -785,7 +793,7 @@ def evolving_harris_cs_model(b0x, b0z, L_cs, lambd=40, gam=1):
     def field(r, t=0.):
         z = r[2]
         L = L_cs(t)
-        
+
         if lambd == None:
             Bx = b0x * np.tanh(z / L)
         else:
@@ -808,7 +816,7 @@ def evolving_harris_induced_E(b0x, L_cs, e0y=0., eps=1e-6):
         The x-component of the magnetic field (in T) at the x-y plane.
 
     L_cs(t) : function
-        The function describing the change in current sheet thickness (in m) over time.    
+        The function describing the change in current sheet thickness (in m) over time.
 
     e0y : float
         The static, background electric field.
