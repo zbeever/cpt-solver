@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import integrate
 from numba import njit
-
+from scipy.interpolate import interp1d
 
 def delta(val):
     '''
@@ -20,6 +20,40 @@ def delta(val):
 
     def sample():
         return val
+
+    return sample
+
+
+def arbitrary(f, min_val, max_val, reconstruction_samples=10000):
+    '''
+    Allows sampling from arbitrary functions.
+
+    Parameters
+    ----------
+    f : function
+        The function describing the PDF. This does not need to be normalized.
+
+    min_val : float
+        The minimum value in the domain.
+
+    max_val : float
+        The maximum value in the domain.
+
+    reconstruction_samples : int, optional
+        The number of samples to use in constructing the inverse CDF of f.
+    '''
+
+    xs = np.linspace(min_val, max_val, reconstruction_samples, endpoint=True)
+    dx = xs[1] - xs[0]
+
+    fs = f(xs)
+    fs /= np.sum(fs) * dx
+
+    F = np.cumsum(fs) * dx
+    F_inv = interp1d(F, xs, kind='linear', fill_value='extrapolate')
+
+    def sample():
+        return F_inv(np.random.default_rng().uniform(0, 1))
 
     return sample
 
