@@ -9,7 +9,7 @@ from numba import njit, prange
 
 from cptsolver.integrators import relativistic_boris
 from cptsolver.distributions import delta
-from cptsolver.utils import Re, field_line, b_along_path, velocity_vec, solve_traj, format_bytes, solve_sys, gyrovector
+from cptsolver.utils import Re, field_line, b_along_path, velocity_vec, solve_traj, format_bytes, solve_sys, gyrovector, solve_traj_for_loss
 
 
 class solver:
@@ -255,7 +255,7 @@ class solver:
         return
 
     
-    def populate_by_eq_pa(self, trials, L, E_dist, eq_pitch_ang_dist, phase_ang_dist, m_dist=delta(sp.m_e), q_dist=delta(-sp.e), t=0., planar=False):
+    def populate_by_eq_pa(self, trials, L_list, E_dist, eq_pitch_ang_dist, phase_ang_dist, m_dist=delta(sp.m_e), q_dist=delta(-sp.e), t=0., planar=False, uniform_trapped=False):
         '''
         Populates the system by L-shell and equatorial pitch angle.
 
@@ -294,25 +294,44 @@ class solver:
         self.initial_conditions  = np.zeros((self.n, 4, 3))
         self.particle_properties = np.zeros((self.n, 2))
 
-        # The field line of a given L-shell intersects the equatorial and meridional planes at -L_dist() * Re along the x-axis.
-        mag_eq = np.array([-L * Re, 0, 0])
+        rrs = []
+        b_mags = []
+        b_mins = []
+        loss_eq_ang = []
 
-        # Get the array of points tracing the field line.
-        rr = field_line(self.b_field, mag_eq, planar=planar)
+        for i in range(len(L_list)):
+            L = L_list[i]
+            mag_eq = np.array([-L * Re, 0, 0])
 
-        # Get the magnetic field along the field line.
-        b_vec, b_mag, b_rad_mag = b_along_path(self.b_field, rr)
+            # Get the array of points tracing the field line.
+            rrs.append(field_line(self.b_field, mag_eq, planar=planar))
 
-        # Isolate the magnetic field minimum (this coincides with the point of maximum curvature).
-        b_min_ind = b_mag.argmin()
-        b_min = b_mag[b_min_ind]
+            # Get the magnetic field along the field line.
+            b_vec, b_mag_temp, b_rad_mag = b_along_path(self.b_field, rrs[i])
+            b_mags.append(b_mag_temp)
+
+            # Isolate the magnetic field minimum (this coincides with the point of maximum curvature).
+            b_min_ind = b_mag_temp.argmin()
+            b_mins.append(b_mag_temp[b_min_ind])
+
+            rms = np.linalg.norm(rrs[i], axis=1)
+            loss_ind = np.abs(rms - (Re + 100e3)).argmin()
+            loss_eq_ang.append(np.arcsin(np.sqrt(b_mins[i] / b_mags[i][loss_ind])))
 
         for i in tqdm.tqdm(range(self.n)):
             K = E_dist()
             m = m_dist()
             q = q_dist()
+            L_ind = np.random.randint(0, len(L_list))
+
+            L = L_list[L_ind]
+            b_min = b_mins[L_ind]
+            b_mag = b_mags[L_ind]
+            rr = rrs[L_ind]
 
             eq_pa = eq_pitch_ang_dist()
+            if uniform_trapped:
+                eq_pa = np.random.default_rng().uniform(loss_eq_ang[L_ind], np.pi / 2)
 
             # Get the magnetic field at the particle's mirror point.
             b_val = b_min / np.sin(eq_pa)**2
@@ -340,9 +359,9 @@ class solver:
             phase_angle = phase_ang_dist()
             v = velocity_vec(r, K, m, self.b_field, pitch_angle, phase_angle)
 
-            self.initial_conditions[i, 0] = r
             self.initial_conditions[i, 1] = v
             self.initial_conditions[i, 2] = self.b_field(r)
+            self.initial_conditions[i, 0] = r + gyrovector(self.initial_conditions[i, 1], self.initial_conditions[i, 2], m, q)
             self.initial_conditions[i, 3] = self.e_field(r)
 
             self.particle_properties[i, 0] = m
@@ -354,7 +373,17 @@ class solver:
         
         return
 
-        
+
+    def lost(self, i):
+        if not self.populated:
+            raise NameError('System not yet populated. Cannot solve without initial conditions.')
+
+        if self.loaded:
+            raise NameError('Cannot solve an already solved system. Use add_particles or add_time.')
+
+        return solve_traj_for_loss(i, self.steps, self.dt, self.initial_conditions, self.particle_properties, self.integrator)
+
+
     def solve_traj(self, i):
         '''
         Wrapper for the single particle solver. Needed to use Numba. Avoid calling this directly.
@@ -376,10 +405,10 @@ class solver:
         if self.loaded:
             raise NameError('Cannot solve an already solved system. Use add_particles or add_time.')
 
-        return solve_traj(i, self.steps, self.dt, self.initial_conditions, self.particle_properties, self.integrator, self.drop_lost, self.downsample)
+        return solve_traj(i, self.steps, self.dt, self.initial_conditions, self.particle_properties, self.integrator, self.drop_lost, self.downsample, self.variable_timestep)
 
     
-    def solve(self, T, dt, sample_every=1e-3):
+    def solve(self, T, dt, sample_every=1e-3, variable_timestep=False):
         '''
         Solve the system. Only call after having populated the system.
 
@@ -398,6 +427,8 @@ class solver:
         -------
         None
         '''
+
+        self.variable_timestep = variable_timestep
 
         if hasattr(self, 'steps'):
             del self.steps
@@ -428,6 +459,38 @@ class solver:
         # Divide each trajectory among the available processors.
         with Pool(cpu_count()) as p:
             results = list(tqdm.tqdm(p.imap(self.solve_traj, range(self.n)), total=self.n))
+
+        self.history = np.array(results)
+
+        self.solved = True
+
+        return
+
+
+    def solve_for_loss(self, T, dt):
+        if hasattr(self, 'steps'):
+            del self.steps
+
+        if hasattr(self, 'dt'):
+            del self.dt
+
+        if hasattr(self, 'downsample'):
+            del self.downsample
+
+        if hasattr(self, 'history'):
+            del self.history
+
+        self.solved = False
+
+        if not self.populated:
+            raise NameError('System not yet populated. Cannot solve without initial conditions.')
+
+        self.steps = round(abs(T / dt))
+        self.dt = dt
+
+        # Divide each trajectory among the available processors.
+        with Pool(cpu_count()) as p:
+            results = list(tqdm.tqdm(p.imap(self.lost, range(self.n)), total=self.n))
 
         self.history = np.array(results)
 
